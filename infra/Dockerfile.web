@@ -1,0 +1,16 @@
+FROM node:24.22.2-bookworm-slim AS build
+RUN npm install --global pnpm@10.32.1
+WORKDIR /app
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm install --frozen-lockfile
+RUN pnpm exec turbo run build --filter=@protarget/web...
+
+FROM node:24.22.2-bookworm-slim
+RUN npm install --global pnpm@10.32.1
+WORKDIR /app
+COPY --from=build --chown=node:node /app /app
+USER node
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 WEB_PORT=3100 WEB_HOST=0.0.0.0
+EXPOSE 3100
+CMD ["pnpm", "--filter", "@protarget/web", "start"]

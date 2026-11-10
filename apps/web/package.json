@@ -3,22 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p ${WEB_PORT:-3100}",
+    "dev": "next dev -p ${WEB_PORT:-3100} -H ${WEB_HOST:-127.0.0.1}",
     "build": "next build",
-    "start": "next start -p ${WEB_PORT:-3100}",
+    "start": "next start -p ${WEB_PORT:-3100} -H ${WEB_HOST:-127.0.0.1}",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@protarget/i18n": "workspace:*",
     "@protarget/shared": "workspace:*",
-    "next": "^16.4.6",
-    "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "next": "16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@types/node": "^20.19.43",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "typescript": "^5.9.3"
+    "@playwright/test": "1.65.0",
+    "@types/node": "20.19.43",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "5.9.3"
   }
 }

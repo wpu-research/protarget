@@ -1,5 +1,7 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
+import { AuditService } from './audit.service';
+import { AuditController } from './audit.controller';
 
-/** Faz 0 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+@Global()
+@Module({ providers: [AuditService], exports: [AuditService], controllers: [AuditController] })
 export class AuditModule {}

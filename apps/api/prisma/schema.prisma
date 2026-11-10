@@ -198,6 +198,8 @@ model User {
 
   org                 Organization         @relation(fields: [orgId], references: [id])
   refreshTokens       RefreshToken[]
+  sessions            Session[]
+  invitations         Invitation[]
   ownedCampaigns      Campaign[]           @relation("CampaignOwner")
   auditLogs           AuditLog[]
   campaignPermissions CampaignPermission[]
@@ -213,11 +215,58 @@ model RefreshToken {
   expiresAt DateTime  @db.Timestamptz
   revokedAt DateTime? @db.Timestamptz
   createdAt DateTime  @default(now()) @db.Timestamptz
+  sessionId String?   @db.Uuid
+  usedAt    DateTime? @db.Timestamptz
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([sessionId])
   @@map("refresh_tokens")
+}
+
+/// One login is one refresh family. Used refresh hashes remain until family retention cleanup.
+model Session {
+  id              String    @id @default(uuid()) @db.Uuid
+  familyId        String    @unique @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  orgId           String    @db.Uuid
+  role            Role
+  accessTokenHash String    @unique
+  expiresAt       DateTime  @db.Timestamptz
+  revokedAt       DateTime? @db.Timestamptz
+  createdAt       DateTime  @default(now()) @db.Timestamptz
+  updatedAt       DateTime  @updatedAt @db.Timestamptz
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens   RefreshToken[]
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Invitation {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @db.Uuid
+  tokenHash      String    @unique
+  expiresAt      DateTime  @db.Timestamptz
+  acceptedAt     DateTime? @db.Timestamptz
+  revokedAt      DateTime? @db.Timestamptz
+  deliveryStatus String    @default("pending")
+  createdAt      DateTime  @default(now()) @db.Timestamptz
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("invitations")
+}
+
+/// Shared across API instances; keys are HMACs, never emails or raw IP addresses.
+model AuthRateLimit {
+  key       String   @id
+  count     Int
+  startedAt DateTime @db.Timestamptz
+
+  @@map("auth_rate_limits")
 }
 
 /// Varsayılan görünürlük agency_id/advertiser_id üzerinden; bu tablo ileride açık paylaşım için.

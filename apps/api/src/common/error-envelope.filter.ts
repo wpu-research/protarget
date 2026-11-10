@@ -1,6 +1,8 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import type { ErrorEnvelope } from '@protarget/shared';
 import { ApiError } from './api-error';
+import { Prisma } from '@prisma/client';
+import { redact } from './redact';
 
 const STATUS_CODES: Record<number, string> = {
   400: 'VALIDATION_FAILED',
@@ -21,7 +23,8 @@ export class ErrorEnvelopeFilter implements ExceptionFilter {
 
     if (exception instanceof ApiError) {
       status = exception.status;
-      body = { error: { code: exception.code, message: exception.message, details: exception.details } };
+      body = { error: { code: exception.code, message: exception.message,
+        details: redact(exception.details) as Record<string, unknown> } };
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const payload = exception.getResponse();
@@ -33,9 +36,13 @@ export class ErrorEnvelopeFilter implements ExceptionFilter {
           details: Array.isArray(message) ? { issues: message } : {},
         },
       };
+    } else if (exception instanceof Prisma.PrismaClientKnownRequestError && exception.code === 'P2002') {
+      status = 409;
+      body = { error: { code: 'INVALID_STATE_TRANSITION', message: 'Resource already exists', details: {} } };
     } else {
-      // Beklenmeyen hata: ayrıntı istemciye sızmaz, loga yazılır.
-      console.error(JSON.stringify({ level: 'error', msg: 'unhandled exception', error: String(exception), stack: (exception as Error)?.stack }));
+      // Never serialize arbitrary errors: SMTP/Prisma messages may contain credentials or tokens.
+      const requestId = host.switchToHttp().getRequest().requestId;
+      console.error(JSON.stringify({ level: 'error', msg: 'request failed', requestId }));
     }
 
     res.status(status).json(body);

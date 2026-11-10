@@ -3,20 +3,30 @@
   "private": true,
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">=20.9"
+    "node": ">=24.9.0 <25"
   },
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "infra:up": "docker compose -f infra/docker-compose.yml --env-file .env up -d",
-    "infra:down": "docker compose -f infra/docker-compose.yml --env-file .env down",
+    "infra:up": "docker compose up -d postgres redis mailpit",
+    "infra:down": "docker compose down",
     "db:migrate": "pnpm --filter @protarget/api exec prisma migrate dev",
     "db:deploy": "pnpm --filter @protarget/api exec prisma migrate deploy",
-    "db:generate": "pnpm --filter @protarget/api exec prisma generate"
+    "db:generate": "pnpm --filter @protarget/api exec prisma generate",
+    "lint": "eslint apps packages infra --no-warn-ignored",
+    "test:integration": "pnpm --filter @protarget/api exec node --experimental-vm-modules node_modules/jest/bin/jest.js --config test/jest-integration.config.cjs --runInBand",
+    "test:e2e": "pnpm --filter @protarget/web exec playwright test",
+    "seed:foundation": "pnpm --filter @protarget/api exec node prisma/seed.cjs",
+    "setup:env": "node infra/setup-env.mjs",
+    "local": "node infra/run-local.mjs"
   },
   "devDependencies": {
-    "turbo": "^2.11.10"
+    "@eslint/js": "10.0.1",
+    "eslint": "10.14.0",
+    "globals": "17.14.0",
+    "turbo": "2.11.10",
+    "typescript-eslint": "8.72.2"
   }
 }

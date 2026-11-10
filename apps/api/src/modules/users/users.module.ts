@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
+import { UsersController } from './users.controller';
+import { UsersService } from './users.service';
+import { InvitationMailer } from './invitation-mailer.service';
 
-/** Faz 0 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+@Module({ controllers: [UsersController], providers: [UsersService, InvitationMailer] })
 export class UsersModule {}

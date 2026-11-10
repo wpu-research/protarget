@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
+import { OrganizationsModule } from '../organizations/organizations.module';
+import { PortalController } from './portal.controller';
 
-/** Faz 5 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+@Module({ imports: [OrganizationsModule], controllers: [PortalController] })
 export class PortalModule {}

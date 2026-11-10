@@ -1,43 +1,35 @@
+'use client';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { t } from '@protarget/i18n';
+import type { Identity } from '@protarget/shared';
 import type { NavItem } from '@/lib/nav';
-
-export function Shell({ nav, badge, children }: { nav: NavItem[]; badge?: string; children: ReactNode }) {
-  return (
-    <div className="shell">
-      <aside className="sidebar">
-        <Link href="/" className="brand">{t('app.name')}</Link>
-        {badge ? <span className="badge">{badge}</span> : null}
-        <nav>
-          {nav.map((item) => (
-            <div key={item.href + item.label} className="nav-group">
-              {item.children ? (
-                <>
-                  <span className="nav-heading">{t(item.label)}</span>
-                  {item.children.map((child) => (
-                    <Link key={child.href + child.label} href={child.href} className="nav-link nav-child">
-                      {t(child.label)}
-                    </Link>
-                  ))}
-                </>
-              ) : (
-                <Link href={item.href} className="nav-link">{t(item.label)}</Link>
-              )}
-            </div>
-          ))}
-        </nav>
-      </aside>
-      <main className="content">{children}</main>
+import { LanguageSwitch, useText } from './Locale';
+import { Logout } from './AuthForms';
+export function Shell({ nav, user, children }: { nav: NavItem[]; user: Identity; children: ReactNode }) {
+  const text = useText();
+  const pathname = usePathname();
+  return <div className="shell">
+    <a className="skip" href="#main">{text('common.skip')}</a>
+    <aside className="sidebar">
+      <Link href="/" className="wordmark">protarget<span>.</span></Link>
+      <span className="phase-chip">{text('foundation.phase')}</span>
+      <nav aria-label={text('common.navigation')}>{nav.map(item =>
+        <Link key={item.href} href={item.href} aria-current={pathname === item.href ? 'page' : undefined} className="nav-link">
+          {text(item.label)}{item.future && <span className="soon">{text('common.planned')}</span>}
+        </Link>)}</nav>
+      <div className="sidebar-note"><span className="status-dot" />{text('foundation.scope')}</div>
+    </aside>
+    <div className="workspace">
+      <header className="topbar"><div><strong>{user.organization.name}</strong><small>{text(`role.${user.role}`)} · {user.email}</small></div>
+        <div className="toolbar"><LanguageSwitch /><Logout /></div></header>
+      <main id="main" className="content">{children}</main>
     </div>
-  );
+  </div>;
 }
-
 export function Placeholder({ title }: { title: string }) {
-  return (
-    <>
-      <h1>{title}</h1>
-      <p className="muted">{t('common.notImplemented')}</p>
-    </>
-  );
+  const text = useText();
+  return <><p className="eyebrow">{text('common.planned')}</p><h1>{title}</h1>
+    <section className="card empty-state"><span className="empty-symbol" aria-hidden="true">＋</span>
+      <h2>{text('common.notImplemented')}</h2><p>{text('foundation.future')}</p></section></>;
 }

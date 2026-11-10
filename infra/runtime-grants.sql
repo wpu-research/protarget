@@ -1,0 +1,6 @@
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
+GRANT USAGE ON SCHEMA public TO protarget_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO protarget_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO protarget_app;
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM protarget_app;
+REVOKE ALL ON _prisma_migrations FROM protarget_app;

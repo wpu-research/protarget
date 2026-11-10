@@ -1,14 +1,4 @@
-import Link from 'next/link';
-import { t } from '@protarget/i18n';
-
-export default function Home() {
-  return (
-    <main className="home">
-      <h1>{t('app.name')}</h1>
-      <div className="home-links">
-        <Link href="/admin">{t('home.admin')}</Link>
-        <Link href="/portal">{t('home.portal')}</Link>
-      </div>
-    </main>
-  );
-}
+import { redirect } from 'next/navigation';
+import { homeForRole } from '@protarget/shared';
+import { requireUser } from '@/lib/server';
+export default async function Home() { redirect(homeForRole((await requireUser()).role)); }
