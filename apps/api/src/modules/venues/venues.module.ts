@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
-/** Faz 1 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+import { VenuesController } from './venues.controller';
+import { VenuesService } from './venues.service';
+@Module({ controllers: [VenuesController], providers: [VenuesService] })
 export class VenuesModule {}

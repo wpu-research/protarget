@@ -58,6 +58,7 @@ enum MultiplierSourceType {
   MUNICIPALITY
   SENSOR
   MANUAL_VERIFIED
+  MANUAL
   THIRD_PARTY
 }
 
@@ -318,23 +319,27 @@ model Screen {
   name                 String
   owner                String?
   locationLabel        String?
-  resolutionWidth      Int
-  resolutionHeight     Int
-  orientation          Orientation
+  resolutionWidth      Int?
+  resolutionHeight     Int?
+  orientation          Orientation?
   physicalSize         String?
-  playerType           PlayerType
+  playerType           PlayerType  @default(EXTERNAL_SIGNAGE)
   os                   String?
-  loopLengthSec        Int
-  defaultSlotLengthSec Int         @default(10)
+  cmsName              String?
+  cmsVersion           String?
+  cmsReference         String?
+  notes                String?
+  loopLengthSec        Int?
+  defaultSlotLengthSec Int?
   /// Yerel saat (ekranın timezone'unda), "HH:mm"
-  operatingStart       String
-  operatingEnd         String
+  operatingStart       String?
+  operatingEnd         String?
   timezone             String      @default("Europe/Istanbul")
   floorCpm             Decimal?    @db.Decimal(18, 4)
   floorCpp             Decimal?    @db.Decimal(18, 4)
   directRate           Decimal?    @db.Decimal(18, 4)
   revenueSharePct      Decimal?    @db.Decimal(5, 2)
-  dealEligible         Boolean     @default(true)
+  dealEligible         Boolean     @default(false)
   active               Boolean     @default(true)
   lastPlaybackAt       DateTime?   @db.Timestamptz
   deletedAt            DateTime?   @db.Timestamptz
@@ -416,6 +421,8 @@ model MultiplierProfile {
   /// overlap exclusion constraint'i aynı anahtarlı onaylı profillerin çakışmasını engeller.
   specificityKey String               @default("")
   confidenceNote String?
+  /// Required for new manual drafts; legacy rows remain unchanged.
+  changeReason   String?
   approvalStatus ApprovalStatus       @default(DRAFT)
   version        Int
   createdBy      String               @db.Uuid

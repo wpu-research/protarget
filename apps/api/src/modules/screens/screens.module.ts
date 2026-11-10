@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
-/** Faz 1 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+import { ScreensController } from './screens.controller';
+import { ScreensService } from './screens.service';
+@Module({ controllers: [ScreensController], providers: [ScreensService] })
 export class ScreensModule {}

@@ -12,6 +12,7 @@ export function useText() {
   const locale = useContext(Context);
   return (key: MessageKey, params?: Record<string, string | number>) => t(key, locale, params);
 }
+export function useLocale() { return useContext(Context); }
 export function LanguageSwitch() {
   const locale = useContext(Context);
   const text = useText();

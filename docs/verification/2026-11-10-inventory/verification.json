@@ -1,0 +1,95 @@
+{
+  "date": "2026-11-10",
+  "scope": "local isolated verification only; not deployed",
+  "branch": "story/inventory-manual-multipliers",
+  "baseline": "dea05dcc2f039d1a573d889642c1d0dc2f77ff8b",
+  "node": "24.22.2",
+  "postgres": "14",
+  "buildPackages": 8,
+  "typecheckPackages": 8,
+  "lint": "passed",
+  "unit": {
+    "passed": 98,
+    "suites": 4
+  },
+  "integration": {
+    "passed": 70,
+    "suites": 2
+  },
+  "chromiumE2e": {
+    "passed": 30,
+    "foundation": 11,
+    "inventory": 19,
+    "durationSeconds": 50.4,
+    "fixtureNote": "Some legacy presentation and race regressions intercept HTTP; separate genuine old-schema browser upgrade below does not."
+  },
+  "totalAutomatedTests": 198,
+  "openapi": "regenerated",
+  "migrations": 6,
+  "validLegacyUpgrade": [
+    {
+      "legacyValuePreserved": true,
+      "legacySourcePreserved": true,
+      "legacyApprovalPreserved": true
+    },
+    {
+      "screenCodePreserved": true,
+      "dimensionsPreserved": true,
+      "schedulePreserved": true,
+      "newCmsUnknown": true
+    },
+    {
+      "unknownDimensions": true,
+      "unknownSchedule": true,
+      "externalPlayer": true,
+      "noDeal": true
+    }
+  ],
+  "inconsistentLegacyUpgrade": {
+    "existingInvalidTimingPreserved": true,
+    "deactivationAllowed": true,
+    "metadataEditAllowed": true,
+    "multiplierLockAllowed": true,
+    "independentTimingRepair": true,
+    "newInvalidTimingRejected": true,
+    "legacyMultiplierPreserved": true
+  },
+  "visual": {
+    "desktopWidth": 1440,
+    "mobileWidth": 375,
+    "mobileOverflow": false,
+    "reviewed": true
+  },
+  "credentialScan": {
+    "localGeneratedValues": 5,
+    "repositoryFiles": 202,
+    "browserAssets": 16,
+    "matches": 0
+  },
+  "limitations": [
+    "No Railway deployment",
+    "No Docker Compose runtime verification",
+    "No CMS/player connectivity or proof-of-play",
+    "Phase 0 acceptance/deferred work remains open"
+  ],
+  "implementationStatus": "done",
+  "acceptanceStatus": "review; Phase 0 prerequisites remain open",
+  "genuineLegacyBrowserUpgrade": {
+    "genuinePreMigrationFixture": true,
+    "noInterceptedHTTP": true,
+    "lockedCodePreserved": true,
+    "unlockedCodePreserved": true,
+    "malformedHoursPreserved": true,
+    "metadataAndDeactivation": true,
+    "independentTimingRepairs": true,
+    "explicitHoursClear": true
+  },
+  "review": {
+    "rounds": 3,
+    "uniqueMediumFindings": 9,
+    "fixed": 9,
+    "unresolvedInventoryFindings": 0,
+    "finalFocusedReview": "closed; source and in-memory handler verification",
+    "phase0DeferredWork": "remains open"
+  }
+}

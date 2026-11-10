@@ -99,6 +99,7 @@ export const MultiplierSourceType = {
   MUNICIPALITY: 'MUNICIPALITY',
   SENSOR: 'SENSOR',
   MANUAL_VERIFIED: 'MANUAL_VERIFIED',
+  MANUAL: 'MANUAL',
   THIRD_PARTY: 'THIRD_PARTY',
 } as const;
 export type MultiplierSourceType = (typeof MultiplierSourceType)[keyof typeof MultiplierSourceType];

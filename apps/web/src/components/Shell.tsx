@@ -16,7 +16,8 @@ export function Shell({ nav, user, children }: { nav: NavItem[]; user: Identity;
       <Link href="/" className="brand-link" aria-label="Protarget"><Brand /></Link>
       <span className="phase-chip">{text('foundation.phase')}</span>
       <nav aria-label={text('common.navigation')}>{nav.map(item =>
-        <Link key={item.href} href={item.href} aria-current={pathname === item.href ? 'page' : undefined} className="nav-link">
+        <Link key={item.href} href={item.href} aria-current={pathname === item.href ||
+          (item.href.startsWith('/admin/inventory/') && pathname.startsWith(item.href + '/')) ? 'page' : undefined} className="nav-link">
           {text(item.label)}{item.future && <span className="soon">{text('common.planned')}</span>}
         </Link>)}</nav>
       <div className="sidebar-note"><span className="status-dot" />{text('foundation.scope')}</div>

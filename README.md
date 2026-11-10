@@ -1,8 +1,9 @@
 # Protarget — operasyon ve müşteri takip paneli
 
-**Mevcut durum:** Faz 0 kimlik/kurum/kullanıcı arayüzleri ve API uygulanmıştır.
-Yerel testler geçti; Docker daemon erişimi engellendiği için Compose ile
-uçtan uca ayağa kalkış **henüz doğrulanmadı**. Üretime hazır kabul etmeyin.
+**Mevcut durum:** Faz 0 kimlik/kurum/kullanıcı temeline gemi/ekran envanteri
+ve sürümlü manuel çarpan yönetimi eklendi. Envanter yalnız yöneticilere açıktır.
+Bu geliştirme **canlıya yayımlanmadı**. Faz 0'ın Compose kabulü ve ertelenen
+işleri açık kalır; üretime hazır kabul etmeyin.
 
 ## Ürün kapsamı
 
@@ -11,8 +12,9 @@ Güncel kararlar: `docs/MVP_DECISIONS.md`.
 MVP, mevcut CMS'ye operatörün manuel yükleme yapacağı kampanya/booking
 operasyonunu hedefler. Gerçek DSP/SSP, otomatik CMS bağlantısı ve kendi
 player'ımız ilk sürüm şartı değildir. Bunlar **bu Faz 0 teslimatında uygulanmadı**.
-Kampanya, ekran ve rapor menüleri açıkça “Planlandı” durumundadır; sahte
-teslimat veya kampanya istatistiği gösterilmez.
+Kampanya, booking ve rapor menüleri açıkça “Planlandı” durumundadır; sahte
+teslimat veya kampanya istatistiği gösterilmez. Gemi/ekran ve çarpan
+ekranları kullanılabilir; ayrıntılar `docs/INVENTORY.md` içindedir.
 
 ## Gereken ortam
 
@@ -46,7 +48,7 @@ Tarayıcı adresi **WEB_ORIGIN ile birebir aynı** olmalı. `localhost` ve
 geliştirme içindir; API bilerek development modundadır. Üretimde API
 `NODE_ENV=production`, HTTPS origin, TLS SMTP ve ayrı gizli değerler gerekir.
 
-Konteyner başlangıcında migrate servisi uygulama ve test veritabanlarına üç
+Konteyner başlangıcında migrate servisi uygulama ve test veritabanlarına altı
 migration uygular. API ancak migrate başarıyla bitince başlar. Runtime DB
 rolü `protarget_app`; migration sahibi kimlik bilgileri API/web'e verilmez.
 Runtime audit kayıtlarını UPDATE/DELETE/TRUNCATE edemez.
@@ -116,8 +118,11 @@ pnpm local openapi
 
 ## Kapsam dışı / sınırlamalar
 
-- Campaign/player/worker/connector şemaları iskeletten korunmuştur; bu faz
+- Campaign/player/worker/connector şemaları iskeletten korunmuştur; bu teslimat
   bunların iş akışlarını devreye almaz. Worker/player servislerini çalıştırmayın.
+- Envanterde pasifleştirme fiziksel ekranı durdurmaz. CMS/OS metadata'sı
+  bağlantı veya oynatma kanıtı değildir. Manuel çarpan ve yönetici onayı,
+  doğrulanmış izleyici sayısı ya da proof-of-play anlamına gelmez.
 - Support yalnız `/me` ve `/health`; ajans/marka yalnız kendi kurumunu okur.
 - Finansal görünürlük tercihleri kaydedilir; henüz finansal rapor/API yoktur.
 - MFA sonraki güvenlik fazında; MFA etkin hesaplar mevcut girişten reddedilir.

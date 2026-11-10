@@ -13,3 +13,26 @@
 .auth-intro .brand-lockup .wordmark{margin:0}
 .auth-intro .brand-logo{width:138px}
 @media(max-width:720px){.sidebar .brand-link{align-self:flex-start;margin-bottom:16px}.sidebar .brand-logo{width:76px}.brand-lockup{gap:5px}.auth-intro>.brand-lockup{margin-bottom:24px}.auth-intro .brand-logo{width:104px}}
+
+/* Manual inventory: long forms and provenance must stay usable on narrow screens. */
+.inventory{min-width:0}.inventory h1,.content>h1{overflow-wrap:anywhere}
+.inventory fieldset{border:0;padding:0;margin:18px 0 0;min-width:0}
+.inventory input,.inventory select,.inventory textarea,.inventory label,.inventory .venue-picker{min-width:0;max-width:100%}
+.inventory textarea,.inventory .venue-picker select{width:100%;border:1px solid #c9d6cd;border-radius:7px;background:#fbfcfa;padding:11px 12px;color:var(--ink);min-height:42px}
+.inventory textarea{resize:vertical}.inventory textarea:focus-visible{outline:3px solid #3a8a72;outline-offset:3px}
+.inventory textarea:disabled,.inventory select:disabled{background:#edf0eb;color:#63776f}
+.venue-picker{display:grid;align-content:start;gap:7px;font-size:12px;font-weight:650}.venue-picker .button{justify-self:start}
+.inventory-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.inventory-actions .button{white-space:normal;text-align:center}
+.inventory-filters{align-items:start}.inventory .hint{overflow-wrap:anywhere}.inventory .checks input{flex-shrink:0}
+.hardware-section{border:1px solid var(--border);border-radius:8px;padding:16px}.hardware-section summary{font-weight:650;white-space:normal}
+.hardware-section[open]>summary{margin-bottom:14px}.hardware-section>.hint{margin-bottom:16px}
+.inline-venue{margin-top:20px;border-left:3px solid var(--accent);padding-left:12px}
+.inventory-notice{border-left:3px solid var(--accent);background:#eaf1e4;padding:16px;overflow-wrap:anywhere;margin:0}
+.inventory-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:18px 0;font-size:12px}
+.inventory-facts>div{min-width:0}.inventory-facts dd{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.record-metadata{border-top:1px solid var(--border);margin-top:24px;padding-top:10px;font-size:12px}.text-link{text-decoration:underline;text-underline-offset:3px;color:var(--accent)}
+.version-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}.version-summary .card{min-width:0}.version-value{font-size:26px;overflow-wrap:anywhere;margin:12px 0}.version-value small{font-size:12px;color:var(--muted)}
+.approval-panel{border:2px solid var(--accent);scroll-margin-top:20px}.utc-preview{padding:12px;background:var(--bg);border-radius:7px;overflow-wrap:anywhere;margin:0}
+.inventory .pager{flex-wrap:wrap}.inventory .section-heading{flex-wrap:wrap}.inventory .section-heading h3{overflow-wrap:anywhere;min-width:0}
+.inventory .table-scroll td:first-child{max-width:300px;overflow-wrap:anywhere}.inventory .table-scroll td{overflow-wrap:anywhere}
+@media(max-width:720px){.inventory-facts,.version-summary{grid-template-columns:1fr}.inventory .hardware-section{padding:12px}.inventory .button{min-height:42px}.inventory .card{min-width:0}.inventory input[type=datetime-local]{width:100%}.inventory .pager{padding:12px}.inline-venue{padding-left:8px}.inventory .checks label{align-items:flex-start}.inventory .checks input{margin-top:3px}.inventory .version-value{font-size:24px}}

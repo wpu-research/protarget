@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { homeForRole, type Identity, type Role } from '@protarget/shared';
 import type { Locale } from '@protarget/i18n';
 
@@ -37,10 +37,11 @@ export async function requireUser(roles?: Role[]) {
   if (roles && !roles.includes(user.role)) redirect(homeForRole(user.role));
   return user;
 }
-export async function serverApi<T>(path: string): Promise<T> {
+export async function serverApi<T>(path: string, notFoundOnMissing = false): Promise<T> {
   const response = await request(path);
   if (response.status === 401) redirect('/renew');
   if (response.status === 403) redirect('/');
+  if (response.status === 404 && notFoundOnMissing) notFound();
   if (!response.ok) throw new Error('Service unavailable');
   return response.json();
 }

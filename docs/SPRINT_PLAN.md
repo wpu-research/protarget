@@ -6,8 +6,11 @@ manuel CMS kararı sonrası zorunlu olmayan player/programatik işleri ayrı tut
 1. **Faz 0 — Secure foundation (mevcut story):** auth, kurum/kullanıcı/davet,
    tenant izolasyonu, audit, gerçek arayüz, TR/EN, test ve Docker altyapısı.
    Yerel doğrulama tamam; Compose runtime ve review sonucu bekleniyor.
-2. **Envanter:** gemi/ekran, mevcut CMS/OS metadata, manuel çarpan sürümleri.
-   Donanım/OS uyumluluğunu keşfetmeden player kurulumu taahhüdü yok.
+2. **Envanter (yerel uygulama):** gemi/ekran, mevcut CMS/OS metadata, manuel
+   çarpan sürümleri, ayrı onay ve geçmiş arayüzü uygulandı. Teknik uygulama,
+   dokuz inceleme düzeltmesi ve 198 test tamamlandı; Faz 0 önkoşulu nedeniyle
+   sprint/kabul durumu `review`. Canlıya yayımlanmadı. Donanım/OS uyumluluğunu
+   keşfetmeden player kurulumu taahhüdü yok.
 3. **Kampanya/booking:** ajans/marka ilişkisi, kreatif, ekran/tarih/hedef,
    CMS'ye manuel aktarım checklist'i ve operatör işlem kayıtları.
 4. **Teslimat:** manuel beyan, doğrulanmış CMS import'u, kaynak/doğrulama

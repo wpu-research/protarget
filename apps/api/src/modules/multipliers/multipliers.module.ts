@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
-/** Faz 1 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+import { MultipliersController } from './multipliers.controller';
+import { MultipliersService } from './multipliers.service';
+@Module({ controllers: [MultipliersController], providers: [MultipliersService] })
 export class MultipliersModule {}

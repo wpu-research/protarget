@@ -434,6 +434,527 @@
         ]
       }
     },
+    "/api/v1/venues": {
+      "get": {
+        "operationId": "VenuesController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "active",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenuePageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "venues"
+        ]
+      },
+      "post": {
+        "operationId": "VenuesController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVenueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "venues"
+        ]
+      }
+    },
+    "/api/v1/venues/{id}": {
+      "get": {
+        "operationId": "VenuesController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "venues"
+        ]
+      },
+      "patch": {
+        "operationId": "VenuesController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateVenueDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VenueResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "venues"
+        ]
+      }
+    },
+    "/api/v1/screens": {
+      "get": {
+        "operationId": "ScreensController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "venueId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "active",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "screens"
+        ]
+      },
+      "post": {
+        "operationId": "ScreensController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScreenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "screens"
+        ]
+      }
+    },
+    "/api/v1/screens/{id}": {
+      "get": {
+        "operationId": "ScreensController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "screens"
+        ]
+      },
+      "patch": {
+        "operationId": "ScreensController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateScreenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "screens"
+        ]
+      }
+    },
+    "/api/v1/screens/{screenId}/multipliers": {
+      "get": {
+        "operationId": "MultipliersController_history",
+        "parameters": [
+          {
+            "name": "screenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultiplierHistoryDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "multipliers"
+        ]
+      },
+      "post": {
+        "operationId": "MultipliersController_create",
+        "parameters": [
+          {
+            "name": "screenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMultiplierDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultiplierResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "multipliers"
+        ]
+      }
+    },
+    "/api/v1/screens/{screenId}/multipliers/{id}/approve": {
+      "post": {
+        "operationId": "MultipliersController_approve",
+        "parameters": [
+          {
+            "name": "screenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveMultiplierDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultiplierResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "multipliers"
+        ]
+      }
+    },
     "/api/v1/portal/organizations/{id}": {
       "get": {
         "operationId": "PortalController_organization",
@@ -643,6 +1164,773 @@
           "orgId",
           "role"
         ]
+      },
+      "VenueResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mall",
+              "metro",
+              "ferry",
+              "airport",
+              "street",
+              "office",
+              "other"
+            ]
+          },
+          "country": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "country",
+          "city",
+          "timezone",
+          "notes",
+          "active",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "VenuePageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VenueResponseDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "CreateVenueDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mall",
+              "metro",
+              "ferry",
+              "airport",
+              "street",
+              "office",
+              "other"
+            ],
+            "default": "ferry"
+          },
+          "country": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Europe/Istanbul"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "country",
+          "city",
+          "timezone"
+        ]
+      },
+      "UpdateVenueDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "mall",
+              "metro",
+              "ferry",
+              "airport",
+              "street",
+              "office",
+              "other"
+            ],
+            "default": "ferry"
+          },
+          "country": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "city": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Europe/Istanbul"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          }
+        }
+      },
+      "ScreenResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screenId": {
+            "type": "string"
+          },
+          "screenIdLocked": {
+            "type": "boolean"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "venue": {
+            "$ref": "#/components/schemas/VenueResponseDto"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "locationLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "resolutionWidth": {
+            "type": "integer",
+            "nullable": true
+          },
+          "resolutionHeight": {
+            "type": "integer",
+            "nullable": true
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "LANDSCAPE",
+              "PORTRAIT"
+            ],
+            "nullable": true
+          },
+          "physicalSize": {
+            "type": "string",
+            "nullable": true
+          },
+          "os": {
+            "type": "string",
+            "nullable": true
+          },
+          "cmsName": {
+            "type": "string",
+            "nullable": true
+          },
+          "cmsVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "cmsReference": {
+            "type": "string",
+            "nullable": true
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "loopLengthSec": {
+            "type": "integer",
+            "nullable": true
+          },
+          "defaultSlotLengthSec": {
+            "type": "integer",
+            "nullable": true
+          },
+          "operatingStart": {
+            "type": "string",
+            "nullable": true
+          },
+          "operatingEnd": {
+            "type": "string",
+            "nullable": true
+          },
+          "connectionStatus": {
+            "type": "string",
+            "enum": [
+              "NOT_CONNECTED"
+            ],
+            "description": "Manual inventory is not connected to a CMS or player."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "screenId",
+          "screenIdLocked",
+          "venueId",
+          "venue",
+          "name",
+          "timezone",
+          "active",
+          "locationLabel",
+          "resolutionWidth",
+          "resolutionHeight",
+          "orientation",
+          "physicalSize",
+          "os",
+          "cmsName",
+          "cmsVersion",
+          "cmsReference",
+          "notes",
+          "loopLengthSec",
+          "defaultSlotLengthSec",
+          "operatingStart",
+          "operatingEnd",
+          "connectionStatus",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ScreenPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenResponseDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "CreateScreenDto": {
+        "type": "object",
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Z0-9][A-Z0-9_-]*$"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Europe/Istanbul"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          },
+          "locationLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 250
+          },
+          "resolutionWidth": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "resolutionHeight": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "LANDSCAPE",
+              "PORTRAIT"
+            ],
+            "nullable": true
+          },
+          "physicalSize": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "os": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 160
+          },
+          "cmsName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 160
+          },
+          "cmsVersion": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "cmsReference": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000
+          },
+          "loopLengthSec": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "defaultSlotLengthSec": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "operatingStart": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "operatingEnd": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          }
+        },
+        "required": [
+          "screenId",
+          "venueId",
+          "name",
+          "timezone"
+        ]
+      },
+      "UpdateScreenDto": {
+        "type": "object",
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Z0-9][A-Z0-9_-]*$"
+          },
+          "venueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "timezone": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Europe/Istanbul"
+          },
+          "active": {
+            "type": "boolean",
+            "default": true
+          },
+          "locationLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 250
+          },
+          "resolutionWidth": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "resolutionHeight": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "LANDSCAPE",
+              "PORTRAIT"
+            ],
+            "nullable": true
+          },
+          "physicalSize": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "os": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 160
+          },
+          "cmsName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 160
+          },
+          "cmsVersion": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 100
+          },
+          "cmsReference": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 500
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 4000
+          },
+          "loopLengthSec": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "defaultSlotLengthSec": {
+            "type": "number",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 2147483647
+          },
+          "operatingStart": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          },
+          "operatingEnd": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          }
+        }
+      },
+      "MultiplierResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "value": {
+            "type": "string",
+            "example": "1.2500"
+          },
+          "sourceType": {
+            "type": "string",
+            "enum": [
+              "CAMERA",
+              "MUNICIPALITY",
+              "SENSOR",
+              "MANUAL_VERIFIED",
+              "MANUAL",
+              "THIRD_PARTY"
+            ]
+          },
+          "sourceRef": {
+            "type": "string"
+          },
+          "changeReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "confidenceNote": {
+            "type": "string",
+            "nullable": true
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "validTo": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "daypartStart": {
+            "type": "string",
+            "nullable": true
+          },
+          "daypartEnd": {
+            "type": "string",
+            "nullable": true
+          },
+          "weekdays": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "approvalStatus": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "APPROVED"
+            ]
+          },
+          "version": {
+            "type": "integer"
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "approvedBy": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "screenId",
+          "value",
+          "sourceType",
+          "sourceRef",
+          "changeReason",
+          "confidenceNote",
+          "validFrom",
+          "validTo",
+          "daypartStart",
+          "daypartEnd",
+          "weekdays",
+          "approvalStatus",
+          "version",
+          "createdBy",
+          "approvedBy",
+          "approvedAt",
+          "supersedesId",
+          "createdAt"
+        ]
+      },
+      "MultiplierHistoryDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MultiplierResponseDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "asOf": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "current": {
+            "nullable": true,
+            "description": "Approved whole-screen profile effective at asOf, using a half-open interval.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MultiplierResponseDto"
+              }
+            ]
+          },
+          "latest": {
+            "nullable": true,
+            "description": "Latest-created version, independent of current approval/effective time.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MultiplierResponseDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize",
+          "asOf",
+          "current",
+          "latest"
+        ]
+      },
+      "CreateMultiplierDto": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "example": "1.2500",
+            "description": "Positive decimal string, maximum 99999999.9999; no exponent."
+          },
+          "sourceRef": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "changeReason": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "value",
+          "sourceRef",
+          "changeReason"
+        ]
+      },
+      "ApproveMultiplierDto": {
+        "type": "object",
+        "properties": {
+          "validFrom": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Omit for server-now; otherwise future UTC timestamp ending in Z."
+          },
+          "validTo": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "supersedesId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Explicit earlier open whole-screen profile to close at the new start."
+          }
+        }
       }
     }
   }
