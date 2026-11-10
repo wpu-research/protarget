@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "origin": "https://web-production-570f712c.up.railway.app",
+  "checks": [
+    "HTTPS/database health",
+    "unauthenticated access and wrong-origin denied",
+    "forged ingress probes submitted; private DB verification required",
+    "admin login and Secure/HttpOnly/Strict cookies",
+    "transparent logo above Protarget text",
+    "admin user/audit pages; email invitation disabled explicitly",
+    "375px mobile without overflow or page errors",
+    "logout revokes session"
+  ]
+}
