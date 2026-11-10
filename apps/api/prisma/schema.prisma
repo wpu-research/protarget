@@ -1,0 +1,758 @@
+// Protarget pDOOH — çekirdek veri modeli (PRD §23, Spec v2 §35).
+// Kurallar: para Decimal (asla Float); zaman timestamptz (UTC); campaign/screen soft delete;
+// multiplier versiyonlu ayrı tablo; audit_logs append-only (trigger migration'da).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────── Enum'lar (packages/shared/src/enums.ts ile aynı) ─────────────
+
+enum OrganizationType {
+  ADMIN
+  AGENCY
+  ADVERTISER
+  MEDIA_OWNER
+}
+
+enum Role {
+  ADMIN
+  AGENCY
+  ADVERTISER
+  SUPPORT
+}
+
+enum VenueType {
+  mall
+  metro
+  ferry
+  airport
+  street
+  office
+  other
+}
+
+enum Orientation {
+  LANDSCAPE
+  PORTRAIT
+}
+
+enum PlayerType {
+  PROTARGET_PLAYER
+  EXTERNAL_SIGNAGE
+}
+
+enum PlayerHealth {
+  ONLINE
+  WARNING
+  OFFLINE
+}
+
+enum MultiplierSourceType {
+  CAMERA
+  MUNICIPALITY
+  SENSOR
+  MANUAL_VERIFIED
+  THIRD_PARTY
+}
+
+enum ApprovalStatus {
+  DRAFT
+  APPROVED
+}
+
+enum CreativeStatus {
+  UPLOADED
+  VALIDATING
+  APPROVED
+  REJECTED
+}
+
+enum CampaignStatus {
+  DRAFT
+  READY_FOR_REVIEW
+  READY
+  LIVE
+  LIVE_WITH_EXTERNAL_ERROR
+  PAUSING
+  PAUSED
+  PAUSED_WITH_EXTERNAL_ERROR
+  RESUMING
+  COMPLETED
+  CANCELLED
+}
+
+enum PricingModel {
+  CPM
+  CPP
+  FIXED
+  PG
+}
+
+enum Currency {
+  TRY
+  USD
+}
+
+enum PgBillingBasis {
+  CONTRACTED
+  DELIVERED
+}
+
+enum CampaignPriority {
+  LOW
+  NORMAL
+  HIGH
+  GUARANTEED
+}
+
+enum DistributionMode {
+  EVEN
+  MANUAL
+}
+
+enum PacingStatus {
+  UNDERPACING
+  ON_TRACK
+  OVERPACING
+}
+
+enum PlaybackResult {
+  success
+  failed
+  skipped
+  corrupted
+  timeout
+}
+
+enum DealType {
+  PMP
+  PREFERRED
+  PG
+  DIRECT
+}
+
+enum DealStatus {
+  DRAFT
+  SENT
+  NEGOTIATING
+  ACCEPTED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ERROR
+}
+
+enum Severity {
+  INFO
+  WARNING
+  CRITICAL
+  SECURITY
+}
+
+// ───────────── Kimlik ─────────────
+
+model Organization {
+  id                  String           @id @default(uuid()) @db.Uuid
+  name                String
+  type                OrganizationType
+  brandName           String?
+  taxLegalLabel       String?
+  active              Boolean          @default(true)
+  /// Ajans/marka portalında spend görünsün mü (açık iş kararı; varsayılan kapalı)
+  spendVisible        Boolean          @default(false)
+  revenueShareVisible Boolean          @default(false)
+  createdAt           DateTime         @default(now()) @db.Timestamptz
+  updatedAt           DateTime         @updatedAt @db.Timestamptz
+
+  users               User[]
+  venuesOwned         Venue[]
+  campaignsAsAgency   Campaign[]           @relation("CampaignAgency")
+  campaignsAsAdvertiser Campaign[]         @relation("CampaignAdvertiser")
+  creatives           Creative[]
+  campaignPermissions CampaignPermission[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  orgId        String    @db.Uuid
+  name         String
+  email        String    @unique
+  role         Role
+  passwordHash String?
+  ssoId        String?
+  /// Şifreli saklanır; yalnız Admin için TOTP
+  mfaSecret    String?
+  mfaEnabled   Boolean   @default(false)
+  active       Boolean   @default(true)
+  lastLogin    DateTime? @db.Timestamptz
+  createdAt    DateTime  @default(now()) @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @db.Timestamptz
+
+  org                 Organization         @relation(fields: [orgId], references: [id])
+  refreshTokens       RefreshToken[]
+  ownedCampaigns      Campaign[]           @relation("CampaignOwner")
+  auditLogs           AuditLog[]
+  campaignPermissions CampaignPermission[]
+
+  @@index([orgId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime  @db.Timestamptz
+  revokedAt DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+/// Varsayılan görünürlük agency_id/advertiser_id üzerinden; bu tablo ileride açık paylaşım için.
+model CampaignPermission {
+  id         String   @id @default(uuid()) @db.Uuid
+  campaignId String   @db.Uuid
+  userId     String?  @db.Uuid
+  orgId      String?  @db.Uuid
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  campaign Campaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  user     User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org      Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId])
+  @@map("campaign_permissions")
+}
+
+// ───────────── Envanter ─────────────
+
+model Venue {
+  id         String    @id @default(uuid()) @db.Uuid
+  name       String
+  type       VenueType
+  country    String    @default("Turkey")
+  city       String
+  district   String?
+  lat        Decimal?  @db.Decimal(9, 6)
+  lon        Decimal?  @db.Decimal(9, 6)
+  timezone   String    @default("Europe/Istanbul")
+  ownerOrgId String?   @db.Uuid
+  active     Boolean   @default(true)
+  notes      String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+  updatedAt  DateTime  @updatedAt @db.Timestamptz
+
+  ownerOrg Organization? @relation(fields: [ownerOrgId], references: [id])
+  screens  Screen[]
+
+  @@map("venues")
+}
+
+model Screen {
+  id                   String      @id @default(uuid()) @db.Uuid
+  /// İnsan-okur sabit fiziksel kimlik (örn. SCR-IST-001); ilk live kampanyadan sonra değişmez
+  screenId             String      @unique
+  screenIdLocked       Boolean     @default(false)
+  venueId              String      @db.Uuid
+  name                 String
+  owner                String?
+  locationLabel        String?
+  resolutionWidth      Int
+  resolutionHeight     Int
+  orientation          Orientation
+  physicalSize         String?
+  playerType           PlayerType
+  os                   String?
+  loopLengthSec        Int
+  defaultSlotLengthSec Int         @default(10)
+  /// Yerel saat (ekranın timezone'unda), "HH:mm"
+  operatingStart       String
+  operatingEnd         String
+  timezone             String      @default("Europe/Istanbul")
+  floorCpm             Decimal?    @db.Decimal(18, 4)
+  floorCpp             Decimal?    @db.Decimal(18, 4)
+  directRate           Decimal?    @db.Decimal(18, 4)
+  revenueSharePct      Decimal?    @db.Decimal(5, 2)
+  dealEligible         Boolean     @default(true)
+  active               Boolean     @default(true)
+  lastPlaybackAt       DateTime?   @db.Timestamptz
+  deletedAt            DateTime?   @db.Timestamptz
+  createdAt            DateTime    @default(now()) @db.Timestamptz
+  updatedAt            DateTime    @updatedAt @db.Timestamptz
+
+  venue             Venue                   @relation(fields: [venueId], references: [id])
+  player            Player?
+  multipliers       MultiplierProfile[]
+  externalMappings  ScreenExternalMapping[]
+  campaignScreens   CampaignScreen[]
+  schedules         Schedule[]
+  manifests         Manifest[]
+  scheduledSlots    ScheduledSlot[]
+  proofsOfPlay      ProofOfPlay[]
+  playerErrors      PlayerErrorLog[]
+  dailyDelivery     DailyCampaignScreenDelivery[]
+
+  @@index([venueId])
+  @@map("screens")
+}
+
+model ScreenExternalMapping {
+  id                  String   @id @default(uuid()) @db.Uuid
+  screenId            String   @db.Uuid
+  connector           String
+  externalInventoryId String
+  createdAt           DateTime @default(now()) @db.Timestamptz
+
+  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  @@unique([screenId, connector])
+  @@map("screen_external_mappings")
+}
+
+model Player {
+  id                     String       @id @default(uuid()) @db.Uuid
+  screenId               String       @unique @db.Uuid
+  /// Yalnız hash saklanır; credential döndürülebilir
+  tokenHash              String?
+  credentialVersion      Int          @default(0)
+  /// Tek kullanımlık provisioning kodu (hash) — /player/register ile credential'a çevrilir
+  provisioningCodeHash   String?
+  provisioningExpiresAt  DateTime?    @db.Timestamptz
+  version                String?
+  os                     String?
+  health                 PlayerHealth @default(OFFLINE)
+  lastHeartbeat          DateTime?    @db.Timestamptz
+  diskFreeBytes          BigInt?
+  currentManifestVersion String?
+  lastSuccessfulPlayback DateTime?    @db.Timestamptz
+  lastErrorCode          String?
+  lastErrorMessage       String?
+  forceRefresh           Boolean      @default(false)
+  createdAt              DateTime     @default(now()) @db.Timestamptz
+  updatedAt              DateTime     @updatedAt @db.Timestamptz
+
+  screen Screen @relation(fields: [screenId], references: [id], onDelete: Cascade)
+
+  @@map("players")
+}
+
+/// Versiyonlu audience çarpanı. Değer asla overwrite edilmez; yeni satır açılır.
+model MultiplierProfile {
+  id             String               @id @default(uuid()) @db.Uuid
+  screenId       String               @db.Uuid
+  value          Decimal              @db.Decimal(12, 4)
+  sourceType     MultiplierSourceType
+  sourceRef      String
+  validFrom      DateTime             @db.Timestamptz
+  /// NULL = açık uçlu
+  validTo        DateTime?            @db.Timestamptz
+  /// Opsiyonel daypart, ekranın yerel saatinde "HH:mm"
+  daypartStart   String?
+  daypartEnd     String?
+  /// ISO gün numaraları 1=Pzt … 7=Paz; boş = tüm günler
+  weekdays       Int[]
+  /// daypart + gün setinden türetilen anahtar ("" = genel profil). Uygulama yazar;
+  /// overlap exclusion constraint'i aynı anahtarlı onaylı profillerin çakışmasını engeller.
+  specificityKey String               @default("")
+  confidenceNote String?
+  approvalStatus ApprovalStatus       @default(DRAFT)
+  version        Int
+  createdBy      String               @db.Uuid
+  approvedBy     String?              @db.Uuid
+  approvedAt     DateTime?            @db.Timestamptz
+  supersedesId   String?              @db.Uuid
+  createdAt      DateTime             @default(now()) @db.Timestamptz
+
+  screen           Screen            @relation(fields: [screenId], references: [id])
+  impressionEvents ImpressionEvent[]
+
+  @@unique([screenId, version])
+  @@index([screenId, approvalStatus, validFrom])
+  @@map("multiplier_profiles")
+}
+
+// ───────────── Kampanya ─────────────
+
+model Creative {
+  id               String         @id @default(uuid()) @db.Uuid
+  code             String         @unique
+  advertiserId     String         @db.Uuid
+  storageKey       String
+  originalFilename String
+  mime             String
+  durationSeconds  Decimal?       @db.Decimal(8, 3)
+  width            Int?
+  height           Int?
+  sizeBytes        BigInt?
+  /// "sha256:…", server-side üretilir
+  checksum         String?
+  status           CreativeStatus @default(UPLOADED)
+  rejectionReason  String?
+  version          Int            @default(1)
+  replacesId       String?        @db.Uuid
+  createdAt        DateTime       @default(now()) @db.Timestamptz
+  updatedAt        DateTime       @updatedAt @db.Timestamptz
+
+  advertiser        Organization       @relation(fields: [advertiserId], references: [id])
+  campaignCreatives CampaignCreative[]
+
+  @@index([advertiserId])
+  @@map("creatives")
+}
+
+model Campaign {
+  id                          String            @id @default(uuid()) @db.Uuid
+  code                        String            @unique
+  name                        String
+  advertiserId                String            @db.Uuid
+  agencyId                    String?           @db.Uuid
+  internalOwnerId             String            @db.Uuid
+  startAt                     DateTime          @db.Timestamptz
+  endAt                       DateTime          @db.Timestamptz
+  timezone                    String            @default("Europe/Istanbul")
+  notes                       String?
+  pricingModel                PricingModel?
+  currency                    Currency          @default(TRY)
+  unitPrice                   Decimal?          @db.Decimal(18, 4)
+  budget                      Decimal?          @db.Decimal(18, 4)
+  /// FIXED modeli için sözleşmeli tutar
+  contractedAmount            Decimal?          @db.Decimal(18, 4)
+  guaranteedImpressions       BigInt?
+  /// PG'de impression garantisi yerine sözleşmeli sabit teslimat miktarı
+  contractedQuantity          BigInt?
+  targetPlayouts              BigInt?
+  overdeliveryTolerancePct    Decimal           @default(1) @db.Decimal(5, 2)
+  pgBillingBasis              PgBillingBasis    @default(CONTRACTED)
+  publisherSharePct           Decimal?          @db.Decimal(5, 2)
+  protargetSharePct           Decimal?          @db.Decimal(5, 2)
+  priority                    CampaignPriority  @default(NORMAL)
+  distributionMode            DistributionMode  @default(EVEN)
+  maxPlayoutsPerHourPerScreen Int?
+  dealRequired                Boolean           @default(false)
+  status                      CampaignStatus    @default(DRAFT)
+  pacingStatus                PacingStatus?
+  pacingRatio                 Decimal?          @db.Decimal(8, 4)
+  pacingCalculatedAt          DateTime?         @db.Timestamptz
+  launchedAt                  DateTime?         @db.Timestamptz
+  completedAt                 DateTime?         @db.Timestamptz
+  deletedAt                   DateTime?         @db.Timestamptz
+  createdAt                   DateTime          @default(now()) @db.Timestamptz
+  updatedAt                   DateTime          @updatedAt @db.Timestamptz
+
+  advertiser     Organization         @relation("CampaignAdvertiser", fields: [advertiserId], references: [id])
+  agency         Organization?        @relation("CampaignAgency", fields: [agencyId], references: [id])
+  internalOwner  User                 @relation("CampaignOwner", fields: [internalOwnerId], references: [id])
+  screens        CampaignScreen[]
+  creatives      CampaignCreative[]
+  schedules      Schedule[]
+  scheduledSlots ScheduledSlot[]
+  proofsOfPlay   ProofOfPlay[]
+  deals          Deal[]
+  permissions    CampaignPermission[]
+  dailyDelivery  DailyCampaignScreenDelivery[]
+
+  @@index([advertiserId])
+  @@index([agencyId])
+  @@index([status])
+  @@map("campaigns")
+}
+
+model CampaignScreen {
+  campaignId       String   @db.Uuid
+  screenId         String   @db.Uuid
+  /// MANUAL dağıtımda ağırlık; toplam %100'e normalize edilir
+  allocationWeight Decimal  @default(1) @db.Decimal(9, 4)
+  priority         Int      @default(100)
+  /// Opsiyonel ekran bazlı günlük playout tavanı
+  dailyCap         Int?
+  active           Boolean  @default(true)
+  createdAt        DateTime @default(now()) @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  screen   Screen   @relation(fields: [screenId], references: [id])
+
+  @@id([campaignId, screenId])
+  @@index([screenId])
+  @@map("campaign_screens")
+}
+
+model CampaignCreative {
+  campaignId String   @db.Uuid
+  creativeId String   @db.Uuid
+  priority   Int      @default(100)
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  creative Creative @relation(fields: [creativeId], references: [id])
+
+  @@id([campaignId, creativeId])
+  @@map("campaign_creatives")
+}
+
+model Schedule {
+  id         String  @id @default(uuid()) @db.Uuid
+  campaignId String  @db.Uuid
+  /// NULL = kampanyanın tüm seçili ekranları
+  screenId   String? @db.Uuid
+  /// ISO gün 1=Pzt … 7=Paz
+  dayOfWeek  Int
+  /// Kampanya timezone'unda "HH:mm"
+  startTime  String
+  endTime    String
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  screen   Screen?  @relation(fields: [screenId], references: [id])
+
+  @@index([campaignId])
+  @@map("schedules")
+}
+
+// ───────────── Yayın ─────────────
+
+model Manifest {
+  id              String    @id @default(uuid()) @db.Uuid
+  screenId        String    @db.Uuid
+  manifestVersion String    @unique
+  validUntil      DateTime  @db.Timestamptz
+  payload         Json
+  builtAt         DateTime  @default(now()) @db.Timestamptz
+  /// Player bu versiyonu heartbeat ile bildirdiğinde dolar
+  acknowledgedAt  DateTime? @db.Timestamptz
+
+  screen Screen          @relation(fields: [screenId], references: [id])
+  slots  ScheduledSlot[]
+
+  @@index([screenId, builtAt])
+  @@map("manifests")
+}
+
+/// Manifest item'ı. Karşılığında başarılı PoP gelmeyen slot = missed playout.
+model ScheduledSlot {
+  id         String   @id @default(uuid()) @db.Uuid
+  slotCode   String   @unique
+  manifestId String   @db.Uuid
+  screenId   String   @db.Uuid
+  campaignId String   @db.Uuid
+  creativeId String   @db.Uuid
+  validFrom  DateTime @db.Timestamptz
+  validTo    DateTime @db.Timestamptz
+  priority   Int      @default(100)
+  fulfilled  Boolean  @default(false)
+
+  manifest Manifest @relation(fields: [manifestId], references: [id], onDelete: Cascade)
+  screen   Screen   @relation(fields: [screenId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId, validFrom])
+  @@index([screenId, validFrom])
+  @@map("scheduled_slots")
+}
+
+/// Fiziksel teslimatın source-of-truth'u. eventId UNIQUE = idempotency.
+model ProofOfPlay {
+  id                  String         @id @default(uuid()) @db.Uuid
+  eventId             String         @unique
+  campaignId          String         @db.Uuid
+  screenId            String         @db.Uuid
+  creativeId          String         @db.Uuid
+  scheduledSlotCode   String?
+  playedAt            DateTime       @db.Timestamptz
+  receivedAt          DateTime       @default(now()) @db.Timestamptz
+  durationSeconds     Decimal        @db.Decimal(8, 3)
+  result              PlaybackResult
+  offlineRecorded     Boolean        @default(false)
+  playerVersion       String?
+  clockDriftSuspected Boolean        @default(false)
+
+  campaign         Campaign          @relation(fields: [campaignId], references: [id])
+  screen           Screen            @relation(fields: [screenId], references: [id])
+  impressionEvents ImpressionEvent[]
+
+  @@index([campaignId, playedAt])
+  @@index([screenId, playedAt])
+  @@map("proof_of_play")
+}
+
+/// PoP × geçerli multiplier. Geçmiş asla sessizce yeniden hesaplanmaz;
+/// reprocess yeni calculationVersion satırı açar.
+model ImpressionEvent {
+  id                   String   @id @default(uuid()) @db.Uuid
+  popId                String   @db.Uuid
+  multiplierProfileId  String   @db.Uuid
+  estimatedImpressions Decimal  @db.Decimal(18, 4)
+  calculationVersion   Int      @default(1)
+  createdAt            DateTime @default(now()) @db.Timestamptz
+
+  pop               ProofOfPlay       @relation(fields: [popId], references: [id])
+  multiplierProfile MultiplierProfile @relation(fields: [multiplierProfileId], references: [id])
+
+  @@unique([popId, calculationVersion])
+  @@map("impression_events")
+}
+
+// ───────────── Deal / connector ─────────────
+
+model Deal {
+  id                    String     @id @default(uuid()) @db.Uuid
+  campaignId            String     @db.Uuid
+  /// PTR-YYYY-NNNNN
+  internalId            String     @unique
+  type                  DealType
+  connector             String
+  sellerPlatform        String?
+  dsp                   String?
+  buyerSeatId           String?
+  currency              Currency
+  cpm                   Decimal?   @db.Decimal(18, 4)
+  guaranteedImpressions BigInt?
+  startAt               DateTime?  @db.Timestamptz
+  endAt                 DateTime?  @db.Timestamptz
+  inventoryScope        String?
+  externalId            String?
+  status                DealStatus @default(DRAFT)
+  /// Dış sistemin ham durumu (teşhis)
+  rawExternalStatus     Json?
+  lastSyncedAt          DateTime?  @db.Timestamptz
+  createdAt             DateTime   @default(now()) @db.Timestamptz
+  updatedAt             DateTime   @updatedAt @db.Timestamptz
+
+  campaign        Campaign                 @relation(fields: [campaignId], references: [id])
+  syncLogs        DealSyncLog[]
+  externalReports ExternalDeliveryReport[]
+
+  @@index([campaignId])
+  @@map("deals")
+}
+
+/// request/response secret'lar redakte edildikten sonra yazılır.
+model DealSyncLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  dealId    String   @db.Uuid
+  operation String
+  request   Json?
+  response  Json?
+  status    String
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@index([dealId, createdAt])
+  @@map("deal_sync_logs")
+}
+
+/// Dış DSP/SSP rakamları — iç değerlerin üzerine asla yazılmaz, discrepancy için ayrı tutulur.
+model ExternalDeliveryReport {
+  id                  String   @id @default(uuid()) @db.Uuid
+  dealId              String   @db.Uuid
+  date                DateTime @db.Date
+  externalImpressions BigInt
+  raw                 Json?
+  fetchedAt           DateTime @default(now()) @db.Timestamptz
+
+  deal Deal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+
+  @@unique([dealId, date])
+  @@map("external_delivery_reports")
+}
+
+// ───────────── Operasyon ─────────────
+
+/// Append-only. UPDATE/DELETE veritabanı trigger'ı ile engellenir.
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  action     String
+  entityType String
+  entityId   String
+  before     Json?
+  after      Json?
+  metadata   Json?
+  timestamp  DateTime @default(now()) @db.Timestamptz
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
+model OpsError {
+  id         String    @id @default(uuid()) @db.Uuid
+  code       String
+  severity   Severity
+  entityType String?
+  entityId   String?
+  message    String
+  details    Json?
+  resolvedAt DateTime? @db.Timestamptz
+  createdAt  DateTime  @default(now()) @db.Timestamptz
+
+  @@index([code, resolvedAt])
+  @@index([createdAt])
+  @@map("ops_errors")
+}
+
+model PlayerErrorLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  screenId   String   @db.Uuid
+  code       String
+  message    String?
+  details    Json?
+  occurredAt DateTime @db.Timestamptz
+  receivedAt DateTime @default(now()) @db.Timestamptz
+
+  screen Screen @relation(fields: [screenId], references: [id])
+
+  @@index([screenId, occurredAt])
+  @@map("player_error_logs")
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  trigger   String
+  recipient String
+  channel   String    @default("email")
+  payload   Json?
+  status    String    @default("pending")
+  sentAt    DateTime? @db.Timestamptz
+  createdAt DateTime  @default(now()) @db.Timestamptz
+
+  @@map("notifications")
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  @@map("settings")
+}
+
+/// Raporlama performansı için günlük özet (iş: daily-aggregation).
+model DailyCampaignScreenDelivery {
+  date                 DateTime @db.Date
+  campaignId           String   @db.Uuid
+  screenId             String   @db.Uuid
+  playouts             Int      @default(0)
+  failedPlayouts       Int      @default(0)
+  estimatedImpressions Decimal  @default(0) @db.Decimal(18, 4)
+  estimatedSpend       Decimal  @default(0) @db.Decimal(18, 4)
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  screen   Screen   @relation(fields: [screenId], references: [id])
+
+  @@id([date, campaignId, screenId])
+  @@map("daily_campaign_screen_delivery")
+}
