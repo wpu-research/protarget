@@ -3,7 +3,9 @@
 ## CR-2 yeni bulgular
 
 Story dosyasının Tur 2 tablosu otoritedir. R2-01/02 yayın öncesi ayrı
-hardening düzeltmesine alındı. R2-03/04 (IPv6 literal/TLS parametre aktarımı),
+hardening düzeltmesiyle kapatıldı (`096bc8e`); üç paralel CR-3 reviewer'ı
+odaklı değişiklikleri onayladı. Gerçek cloud migration ve kısıtlı rol testi
+başarılı. R2-03/04 (IPv6 literal/TLS parametre aktarımı),
 R2-05/06 (bootstrap konfigürasyon hataları), R2-07 (logo test decode bekleme),
 R2-08 (dil değişiminde eski bildirim dili) ertelendi.
 Canlı konfigürasyon DNS hostname, şifreli Railway özel ağı ve geçerli/eşleşen
@@ -14,9 +16,10 @@ bootstrap değişkenleri kullanır; koşullu senaryolar başarılı diye raporla
 CR-2'ye sunulan değişiklikler:
 - F0-001: Railway ingress IP'si web/API arasında imzalanır; hesap limiti
   korunur; farklı istemci kotası + imzasız sahte başlık testi geçti.
-  Canlı ingress'in gerçek başlık davranışı yayında ayrıca doğrulanacak.
+  Canlı ingress davranışı ayrıca doğrulandı: sahte istemci IP'leri için
+  rate-limit bucket oluşmadı (0).
 - F0-002/003/004/007/008/013: kod düzeltmeleri ve ilgili DB/browser
-  regresyonları eklendi. Son yerel suite'ler başarılı; CR-2 bekleniyor.
+  regresyonları eklendi. Son yerel suite'ler başarılı; CR-2 tamamlandı.
 - F0-011: gerçek secret/browser artifact taraması eklendi, **kısmi**;
   tüm auth logları için sentinel kapsamı hâlâ eksik.
 - F0-005/006/009/010/012: bu turda kapatılmadı. Owner migration/status yolu

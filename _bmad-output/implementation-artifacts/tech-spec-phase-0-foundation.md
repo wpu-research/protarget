@@ -153,3 +153,11 @@ bağımsız ve read-only çalıştırıldı. Sekiz benzersiz bulgu:
 Triage: R2-01/02 internet yayını öncesi ayrı odaklı hardening düzeltmesine
 alındı. Diğerleri `deferred-work.md` içinde açık. Cloud kanıtı ve eski Compose
 kabul engeli review sırasında henüz tamamlanmamıştı; başarı iddiası yapılmadı.
+
+### Code Review Findings — Tur 3 (2026-11-10) → ✅ Onaylandı (odaklı düzeltme)
+
+Commit `096bc8e`. Blind-hunter, edge-case-hunter ve acceptance-auditor
+paralel, bağımsız ve read-only çalıştı; yeni bulgu yok.
+R2-01/02 için transaction, beklenmeyen rol üyeliği ve bypass/replication
+kontrolleri doğrulandı. Bu odaklı onay önceki deferred maddeleri veya
+Compose kabul engelini kapatmaz. Story `review` olarak kalır.

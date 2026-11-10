@@ -13,20 +13,26 @@ yerine geçmez. Kaynak görselin alfa kanalı ve logo/yazı yerleşimi E2E'de do
 getirmesi bulundu. Next history senkronizasyonu düzeltildi; hedefli test 1/1,
 ardından tam suite **11/11** geçti. Başarısız sonuçlar gizlenmedi.
 
-Railway proje/DB/servis ayarları oluşturuldu; bu kayıt anında uygulama container
-deploy ve dış HTTPS kabulü henüz çalıştırılmadı. Güncel kanıt:
-`docs/RAILWAY_DEPLOYMENT.md`. Önceki Compose engeli aşağıda aynen korunur.
+Railway web/API/Postgres yayını **doğrulandı**. Gerçek HTTPS/Chromium smoke:
+DB health, admin login, secure cookies, yetkisiz erişim/Origin reddi,
+kullanıcı/audit sayfaları, şeffaf logo, 375 px mobil ve logout başarılı.
+Cloud PostgreSQL 18.6 runtime rolü kısıtlı; aktif admin 1, demo kullanıcı 0.
+Sahte ingress IP başlıkları için oluşturulan bucket sayısı 0.
+Deployment kimlikleri ve başarısız ilk denemeler dahil güncel kanıt:
+`docs/RAILWAY_DEPLOYMENT.md`. SMTP daveti kapalıdır. Önceki Compose engeli
+aşağıda aynen korunur; canlı pilot bütün ürünün veya Faz 0'ın kabulü değildir.
 
 CR-2 sonrası R2-01/02 için ek izole DB doğrulaması: normal rol kurulumu,
 beklenmeyen üyelikle provisioning reddi ve yarıda kesilen GRANT'ın rollback'i
 başarılı. Lokal psql14 `\getenv` desteklemediği için testte eşdeğer psql
-değişkeni stdin ile verildi; değişmemiş `\getenv` satırı cloud psql15'te
-ayrıca çalıştırılacak. App rolüne tehlikeli üyelik/metadata izni bırakılmadı.
+değişkeni stdin ile verildi. Değişmemiş `\getenv` satırı dahil gerçek migration
+SQL'i cloud container'da başarıyla çalıştı. App rolüne tehlikeli
+üyelik/metadata izni bırakılmadı. CR-3 odaklı üç paralel review: yeni bulgu yok.
 
 Tarih: **10 Kasım 2026**. Branch: `story/phase-0-foundation`.
 Baseline: `9d15c72`. Test çalışma ağacı: `/tmp/protarget-phase0-work`.
 
-## Son çalıştırmalar
+## İlk doğrulama turu (Railway öncesi tarihsel kayıt)
 
 | Kontrol | Sonuç |
 |---|---|
@@ -82,6 +88,7 @@ başarılı olarak sayılmadı.
    migration, seed, API/web health ve tekrar başlatma doğrulaması.
 2. Docker runtime rolüyle audit değişmezliği kontrolü.
 3. Triage kaydedildi: `_bmad-output/implementation-artifacts/deferred-work.md`.
-   Düzeltmeler henüz uygulanmadı. Özellikle ortak proxy IP rate-limit riski
-   internet erişimli kullanım öncesi giderilmeli.
-4. Dağıtım öncesi production hardening ve kullanılan image/dependency taraması.
+   Bir bölümü Railway turunda düzeltildi; güncel açık maddeler bu dosyada.
+   Ortak proxy IP riski giderildi ve canlı ingress davranışı ayrıca doğrulandı.
+4. Kalan production hardening, image/dependency taraması, yedek/restore
+   ve operasyonel izleme. Canlı pilot bunların tamamlandığı anlamına gelmez.
