@@ -1,5 +1,14 @@
 # Ertelenen işler — Faz 0 / CR-1
 
+## CR-2 yeni bulgular
+
+Story dosyasının Tur 2 tablosu otoritedir. R2-01/02 yayın öncesi ayrı
+hardening düzeltmesine alındı. R2-03/04 (IPv6 literal/TLS parametre aktarımı),
+R2-05/06 (bootstrap konfigürasyon hataları), R2-07 (logo test decode bekleme),
+R2-08 (dil değişiminde eski bildirim dili) ertelendi.
+Canlı konfigürasyon DNS hostname, şifreli Railway özel ağı ve geçerli/eşleşen
+bootstrap değişkenleri kullanır; koşullu senaryolar başarılı diye raporlanmaz.
+
 ## 10 Kasım 2026 — Railway hazırlık düzeltmeleri
 
 CR-2'ye sunulan değişiklikler:

@@ -24,8 +24,8 @@ try {
     console.log(JSON.stringify({ migration: name, status: 'complete' }));
   };
   stage('schema', () => execute('pnpm', ['--filter', '@protarget/api', 'exec', 'prisma', 'migrate', 'deploy'], env));
-  stage('runtime-role', () => execute('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', 'infra/railway/runtime-role.sql'], env));
-  stage('runtime-grants', () => execute('psql', ['-X', '-v', 'ON_ERROR_STOP=1', '-f', 'infra/runtime-grants.sql'], env));
+  stage('runtime-role', () => execute('psql', ['-X', '--single-transaction', '-v', 'ON_ERROR_STOP=1', '-f', 'infra/railway/runtime-role.sql'], env));
+  stage('runtime-grants', () => execute('psql', ['-X', '--single-transaction', '-v', 'ON_ERROR_STOP=1', '-f', 'infra/runtime-grants.sql'], env));
   stage('administrator', () => execute('node', ['apps/api/prisma/bootstrap-admin.cjs'], env));
   stage('status', () => execute('pnpm', ['--filter', '@protarget/api', 'exec', 'prisma', 'migrate', 'status'], env));
   console.log(JSON.stringify({ migration: 'all', status: 'complete' }));

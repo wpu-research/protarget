@@ -17,6 +17,12 @@ Railway proje/DB/servis ayarları oluşturuldu; bu kayıt anında uygulama conta
 deploy ve dış HTTPS kabulü henüz çalıştırılmadı. Güncel kanıt:
 `docs/RAILWAY_DEPLOYMENT.md`. Önceki Compose engeli aşağıda aynen korunur.
 
+CR-2 sonrası R2-01/02 için ek izole DB doğrulaması: normal rol kurulumu,
+beklenmeyen üyelikle provisioning reddi ve yarıda kesilen GRANT'ın rollback'i
+başarılı. Lokal psql14 `\getenv` desteklemediği için testte eşdeğer psql
+değişkeni stdin ile verildi; değişmemiş `\getenv` satırı cloud psql15'te
+ayrıca çalıştırılacak. App rolüne tehlikeli üyelik/metadata izni bırakılmadı.
+
 Tarih: **10 Kasım 2026**. Branch: `story/phase-0-foundation`.
 Baseline: `9d15c72`. Test çalışma ağacı: `/tmp/protarget-phase0-work`.
 

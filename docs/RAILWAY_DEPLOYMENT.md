@@ -31,9 +31,14 @@ Protarget yazısının üzerine şeffaf arka planla eklemeyi istedi.
 
 ## Servisler ve ayarlar
 
-`infra/railway/service-settings.json`, Railway CLI
-`environment edit --service-config SERVICE PATH VALUE` ile uygulanan ayarların
-secretsiz kaydıdır. Eski `railway.toml` / `railway.json` yöntemine bağımlı değildir.
+`infra/railway/service-settings.json`, istenen ayarların secretsiz kaydıdır.
+CLI `environment edit --service-config` bu ortamda `No changes to apply`
+döndürüp ayarları kaydetmedi. Bunun yerine resmi `serviceInstanceUpdate`
+GraphQL mutation'ı ile alan adlarının `build.`/`deploy.` önekleri çıkarılarak
+uygulandı; `builder` alanı gönderilmedi (API enum'u DOCKERFILE kabul etmiyor).
+`dockerfilePath` ve `RAILWAY_DOCKERFILE_PATH` Docker build'i seçer.
+Uygulanan ayarlar `railway status --json` ve gerçek deployment manifest'inden
+doğrulanmalıdır. Eski `railway.toml` / `railway.json` yöntemine bağımlı değildir.
 
 | Servis | Çalışma | Public domain | Secret kapsamı |
 |---|---|---|---|

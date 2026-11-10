@@ -5,7 +5,8 @@ const { PrismaClient } = requireApi('@prisma/client');
 const db = new PrismaClient();
 (async () => {
   const [role] = await db.$queryRaw`
-    SELECT current_user AS name, rolsuper, rolcreaterole, rolcreatedb,
+    SELECT current_user AS name, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls,
+      EXISTS (SELECT 1 FROM pg_auth_members WHERE member = current_user::regrole) AS role_membership,
       has_schema_privilege(current_user, 'public', 'CREATE') AS schema_create,
       has_table_privilege(current_user, 'public.audit_logs', 'UPDATE') AS audit_update,
       has_table_privilege(current_user, 'public.audit_logs', 'DELETE') AS audit_delete,

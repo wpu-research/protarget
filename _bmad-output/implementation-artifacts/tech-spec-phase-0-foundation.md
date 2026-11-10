@@ -133,3 +133,23 @@ Bulgu türü: `patch`. Ayrıntılı triage ve düzeltme önerileri:
 
 Deferred bulguların kaydedilmesi, bağımsız Docker kabul engelini kaldırmaz.
 Story `review` durumundadır; phase acceptance ve `main` merge yapılmadı.
+
+### Code Review Findings — Tur 2 (2026-11-10) → Sonradan Uygulanacak
+
+Commit `5ac133b`. Blind-hunter, edge-case-hunter, acceptance-auditor paralel,
+bağımsız ve read-only çalıştırıldı. Sekiz benzersiz bulgu:
+
+| ID | Önem | Lokasyon | Düzeltme önerisi |
+|---|---|---|---|
+| R2-01 | High | `infra/railway/migrate.cjs:27–28` | GRANT/REVOKE dizisini tek transaction'da uygula; kesinti aşırı yetki bırakmasın. |
+| R2-02 | High, koşullu | `runtime-role.sql`, `runtime-check.cjs:8–16` | Mevcut app rolünde SET ROLE üyeliğini ve bypass/replication yetkilerini reddet. Yeni boş DB'de böyle üyelik yok; ileriki provisioning için koruma eksik. |
+| R2-03 | Medium, koşullu | `migrate.cjs:18` | Literal IPv6 URL'sinde PGHOST köşeli parantezlerini kaldır. Mevcut Railway DNS hostname'i etkilenmiyor. |
+| R2-04 | Medium, koşullu | `migrate.cjs:17–20` | Owner URL'deki TLS parametrelerini libpq ortamına aktar. Şu an bağlantı Railway'in şifreli özel ağı üzerinde. |
+| R2-05 | Medium, koşullu | `bootstrap-admin.cjs:10–12` | Bootstrap e-posta validasyonunu LoginDto ile aynı yap. Seçilen canlı e-posta geçerli; bozuk e-posta konfigürasyonu kilitleyebilir. |
+| R2-06 | Medium, koşullu | `bootstrap-admin.cjs:6–7` | Bootstrap değişkenleri yokken kullanılabilir admin olmadan başarı dönme. İlk canlı kurulumda iki değişken de verildi. |
+| R2-07 | Low | `foundation.spec.ts:91–97` | Canvas okumadan image.decode bekle; yavaş yüklemede flaky test olabilir. |
+| R2-08 | Low | `Management.tsx:149–150`, `Locale.tsx:22` | State'te çevrilmiş mesaj yerine çeviri anahtarı tut; dil değişince eski bildirim dili kalmasın. |
+
+Triage: R2-01/02 internet yayını öncesi ayrı odaklı hardening düzeltmesine
+alındı. Diğerleri `deferred-work.md` içinde açık. Cloud kanıtı ve eski Compose
+kabul engeli review sırasında henüz tamamlanmamıştı; başarı iddiası yapılmadı.
