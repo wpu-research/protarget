@@ -10,6 +10,7 @@ Baseline: `9d15c72`. Test çalışma ağacı: `/tmp/protarget-phase0-work`.
 | Monorepo build | 8/8 paket başarılı |
 | Typecheck | 8 pakette başarılı (11 task, dependency build'leri dahil) |
 | ESLint | Başarılı |
+| Frozen/offline install | Lockfile güncel; kurulum başarılı, ek dependency resolution yok |
 | Unit | 14/14 (2 suite) |
 | Gerçek PostgreSQL integration | 36/36 (1 suite) |
 | Gerçek Chromium E2E | 10/10 |
@@ -20,6 +21,7 @@ Baseline: `9d15c72`. Test çalışma ağacı: `/tmp/protarget-phase0-work`.
 | `docker compose config --quiet` | Yeni geçici env ile başarılı |
 | `docker compose up --build -d --wait` | **ÇALIŞTIRILAMADI** — Docker socket erişimi reddedildi |
 | Kök Compose container migration/health | **DOĞRULANMADI** |
+| Paralel üçlü code review | Tamamlandı; 13 birleştirilmiş deferred bulgu (1 high, 11 medium, 1 low) |
 | Production / fiziksel CMS/player / DSP | Kapsam dışı; test edilmedi |
 
 Docker erişimi sandbox dışı izinli komutla da kontrol edildi:
@@ -56,5 +58,7 @@ başarılı olarak sayılmadı.
 1. Docker erişimi olan ortamda temiz, projeye ait volume ile Compose build,
    migration, seed, API/web health ve tekrar başlatma doğrulaması.
 2. Docker runtime rolüyle audit değişmezliği kontrolü.
-3. Üç bağımsız reviewer bulgularının triage kaydı.
+3. Triage kaydedildi: `_bmad-output/implementation-artifacts/deferred-work.md`.
+   Düzeltmeler henüz uygulanmadı. Özellikle ortak proxy IP rate-limit riski
+   internet erişimli kullanım öncesi giderilmeli.
 4. Dağıtım öncesi production hardening ve kullanılan image/dependency taraması.

@@ -103,3 +103,28 @@ UI/API and local tests are implemented. Build/typecheck/lint passed; 14 unit,
 configuration validates, but daemon permission denies actual startup. See
 `docs/ACCEPTANCE.md`. Save implementation for CR; do not mark the phase accepted
 or fast-forward main until the required runtime verification is completed.
+
+### Code Review Findings — Tur 1 (2026-11-10) → Sonradan Uygulanacak
+
+Implementation commit: `eec3342`. Üç reviewer paralel ve bağımsız çalıştırıldı.
+Bulgu türü: `patch`. Ayrıntılı triage ve düzeltme önerileri:
+`deferred-work.md`.
+
+| ID | Severity | Lokasyon | Düzeltme önerisi |
+|---|---|---|---|
+| F0-001 | High | `auth.service.ts:23–24`, web API proxy `route.ts:35–40` | Ortak proxy IP bucket yerine güvenilir ingress/istemci bazlı limit; forwarding başlıklarını körlemesine kabul etme. |
+| F0-002 | Medium | `Management.tsx:112–113`, `users.service.ts:59–62` | Yalnız değişen PATCH alanlarını gönder; isim düzenlemesi pending daveti iptal etmesin. |
+| F0-003 | Medium | `users.service.ts:44–45` | Pasif kurumda kullanıcı pasifleştirmesine izin ver; aktivasyon/taşımayı ayrı doğrula. |
+| F0-004 | Medium | `Locale.tsx:18–19`, `AuthForms.tsx:39–45` | Dil değişiminde davet token'ı ve form state'ini koru; E2E ekle. |
+| F0-005 | Medium | `package.json:10`, `infra/run-local.mjs:9–15` | Watch-mode dev komutlarını env loader üzerinden yalnız API/web için başlat. |
+| F0-006 | Medium | `apps/web/src/lib/client.ts:21–22` | Web Locks olmayan durumda çapraz-sekme refresh koordinasyonu / destek sınırı. |
+| F0-007 | Medium | `auth.service.ts:123–131`, `users.service.ts:106–116` | SMTP ACK timeout ile davet kabulü yarışını tutarlı bir state transition olarak ele al. |
+| F0-008 | Medium | `Management.tsx:83–85` | Yeni organization props ile picker state ve has-more bilgisini senkronize et. |
+| F0-009 | Medium | `docs/openapi.json:98–143`, `pagination.dto.ts:6–12` | Response/error DTO ve integer pagination schema ekle; contract testi. |
+| F0-010 | Medium | `foundation.integration-spec.ts:242–258` | Mutation route keşfi ve 403 sonrası değişmeyen veri assertion'ları. |
+| F0-011 | Medium | `phase0-security.unit-spec.ts:21–27` | Browser bundle/auth log sentinel-secret testleri. Gerçek sızıntı kanıtı yok. |
+| F0-012 | Medium | Bu spec'teki migration status komutu, `runtime-grants.sql:6` | Migration sahibi serviste doğru workspace ile status doğrulaması. Runtime yetkisini genişletme. |
+| F0-013 | Low | `apps/web/e2e/foundation.spec.ts:62–66,145–176` | Davetli E2E kullanıcısını cleanup'ta pasifleştir ve sonucu doğrula. |
+
+Deferred bulguların kaydedilmesi, bağımsız Docker kabul engelini kaldırmaz.
+Story `review` durumundadır; phase acceptance ve `main` merge yapılmadı.

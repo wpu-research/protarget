@@ -105,9 +105,14 @@ pnpm local openapi
   O portu kullanan Mailpit ile aynı anda çalıştırmayın. API'yi E2E SMTP portuna
   yönlendirip yeniden başlatın. Gerçek e-posta sağlayıcısına test gönderilmez.
 - Playwright tarayıcısı: `PLAYWRIGHT_SKIP_BROWSER_GC=1 pnpm --filter @protarget/web exec playwright install chromium`.
-- Testler kendi oluşturdukları kayıtları pasifleştirir; append-only audit
-  kayıtları silinmez. Parolaları/tokenları kaydedebileceği için browser trace kapalıdır.
+- Integration testleri kendi fixture'larını pasifleştirir. E2E kurum
+  cleanup'ı vardır; davetli test kullanıcısının cleanup'ı henüz eksiktir
+  (F0-013). Append-only audit kayıtları silinmez. Parolaları/tokenları
+  kaydedebileceği için browser trace kapalıdır.
 - Ayrıntılı sonuçlar: `docs/ACCEPTANCE.md`.
+- Üçlü incelemenin ertelenen düzeltmeleri:
+  `_bmad-output/implementation-artifacts/deferred-work.md`. 1 yüksek önem
+  dereceli proxy rate-limit riski dahil 13 bulgu kayıtlı; CR temiz değildir.
 
 ## Kapsam dışı / sınırlamalar
 
@@ -119,6 +124,9 @@ pnpm local openapi
 - Reverse proxy istemci IP başlıklarını güvenli biçimde doğrulayan bir katman
   henüz yoktur. Auth IP limiti web proxy arkasında ortak IP üzerinde çalışır;
   üretim kapasitesi ve güvenilir proxy zinciri ayrıca tasarlanmalıdır.
+- Eski `pnpm dev` env loader'a henüz bağlı değildir (F0-005); yukarıdaki
+  `pnpm local api/web` yolunu kullanın. Davet ekranında dil değişimi tam
+  reload nedeniyle bağlantıyı yeniden açmayı gerektirir (F0-004).
 - Redis Faz 0 iş akışında kullanılmaz. MinIO/ClamAV opsiyonel profildir.
   MinIO için onaylı, yerelde oluşturulmuş `MINIO_IMAGE` sağlanmadan `storage`
   profilini açmayın. Bu profillerin runtime doğrulaması yapılmadı.
