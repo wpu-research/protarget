@@ -1,5 +1,5 @@
 'use client';
-import { useState, type FormEvent } from 'react';
+import { useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -76,13 +76,15 @@ export function Organizations({ data }: { data: PageResult<Organization> }) {
       <Pager data={data} href="/admin/organizations" /></section>
   </div>;
 }
-export function Users({ data, organizations }: { data: PageResult<ManagedUser>; organizations: PageResult<Organization> }) {
+export function Users({ data, organizations, invitationsEnabled = true }: {
+  data: PageResult<ManagedUser>; organizations: PageResult<Organization>; invitationsEnabled?: boolean;
+}) {
   const text = useText();
   const router = useRouter();
   const [selected, setSelected] = useState<ManagedUser | null>(null);
   const [orgs, setOrgs] = useState(organizations.items);
   const [orgPage, setOrgPage] = useState(organizations.page);
-  const [orgMore, setOrgMore] = useState(organizations.total > organizations.items.length);
+  const [orgMore, setOrgMore] = useState(organizations.page * organizations.pageSize < organizations.total);
   const [orgId, setOrgId] = useState('');
   const [role, setRole] = useState<Role>('AGENCY');
   const [formKey, setFormKey] = useState(0);
@@ -90,15 +92,41 @@ export function Users({ data, organizations }: { data: PageResult<ManagedUser>; 
   const [loadingOrgs, setLoadingOrgs] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const chosenOrgId = useRef(orgId);
+  const orgRequest = useRef<object | null>(null);
+  useLayoutEffect(() => { chosenOrgId.current = orgId; }, [orgId]);
+  useLayoutEffect(() => {
+    // Refresh the server page before paint, retaining only the chosen off-page option.
+    // Retained options must not advance the server's pagination cursor.
+    orgRequest.current = null;
+    setLoadingOrgs(false);
+    const chosenId = chosenOrgId.current;
+    setOrgs(previous => {
+      const chosen = previous.find(org => org.id === chosenId);
+      return chosen && !organizations.items.some(org => org.id === chosen.id)
+        ? [...organizations.items, chosen] : organizations.items;
+    });
+    setOrgPage(organizations.page);
+    setOrgMore(organizations.page * organizations.pageSize < organizations.total);
+    return () => { orgRequest.current = null; };
+  }, [organizations]);
   const currentOrg = orgs.find(org => org.id === orgId) ?? (selected?.organization.id === orgId ? selected.organization : undefined);
   const roles = currentOrg ? rolesForOrganization(currentOrg.type) : [];
   async function loadMore() {
+    if (!orgMore || orgRequest.current) return;
+    const request = {};
+    orgRequest.current = request;
     setLoadingOrgs(true); setError('');
     try {
-      const result = await api<PageResult<Organization>>(`/organizations?page=${orgPage + 1}&pageSize=100`);
+      const result = await api<PageResult<Organization>>(`/organizations?page=${orgPage + 1}&pageSize=${organizations.pageSize}`);
+      if (orgRequest.current !== request) return;
       setOrgs(previous => [...new Map([...previous, ...result.items].map(org => [org.id, org])).values()]);
       setOrgPage(result.page); setOrgMore(result.page * result.pageSize < result.total);
-    } catch (error) { setError(text(errorKey(error))); } finally { setLoadingOrgs(false); }
+    } catch (error) {
+      if (orgRequest.current === request) setError(text(errorKey(error)));
+    } finally {
+      if (orgRequest.current === request) { orgRequest.current = null; setLoadingOrgs(false); }
+    }
   }
   function edit(user: ManagedUser | null) {
     setSelected(user); setOrgId(user?.orgId ?? ''); setRole(user?.role ?? 'AGENCY');
@@ -107,11 +135,20 @@ export function Users({ data, organizations }: { data: PageResult<ManagedUser>; 
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || !roles.includes(role)) return;
+    if (busy || (!selected && !invitationsEnabled) || !roles.includes(role)) return;
     const values = new FormData(event.currentTarget);
-    const body = { name: String(values.get('name')).trim(), orgId, role,
-      ...(selected ? { active: values.has('active') } : { email: values.get('email') }) };
-    setBusy(true); setError(''); setMessage('');
+    const name = String(values.get('name')).trim();
+    const active = values.has('active');
+    // Sending an unchanged `active: false` would revoke a still-pending invitation.
+    const body = selected ? {
+      ...(name !== selected.name ? { name } : {}),
+      ...(orgId !== selected.orgId ? { orgId } : {}),
+      ...(role !== selected.role ? { role } : {}),
+      ...(active !== selected.active ? { active } : {}),
+    } : { name, orgId, role, email: values.get('email') };
+    setError(''); setMessage('');
+    if (selected && !Object.keys(body).length) { setMessage(text('common.saved')); return; }
+    setBusy(true);
     try {
       const result = await api<{ invitation?: { status: string } }>(selected ? `/users/${selected.id}` : '/users/invite', {
         method: selected ? 'PATCH' : 'POST', body,
@@ -145,9 +182,10 @@ export function Users({ data, organizations }: { data: PageResult<ManagedUser>; 
         {orgMore && <div className="full"><button type="button" className="button quiet" disabled={loadingOrgs} onClick={loadMore}>{text('organization.loadMore')}</button></div>}
         {selected && <div className="checks full"><label><input type="checkbox" name="active" defaultChecked={selected.active} />{text('common.active')}</label></div>}
         <p className="hint full">{text('user.inviteHint')}</p>
+        {!invitationsEnabled && <p className="hint full" role="note">{text('user.invitesDisabled')}</p>}
         {error && <p className="error full" role="alert">{error}</p>}
         {message && <p className="success full" role="status">{message}</p>}
-        <div><button className="button primary" disabled={busy || !roles.includes(role)}>{text(busy ? 'common.working' : selected ? 'common.save' : 'user.sendInvite')}</button></div>
+        <div><button className="button primary" disabled={busy || (!selected && !invitationsEnabled) || !roles.includes(role)}>{text(busy ? 'common.working' : selected ? 'common.save' : 'user.sendInvite')}</button></div>
       </form>
     </section>
     <section className="card table-card"><div className="table-scroll"><table>

@@ -77,6 +77,11 @@ context:
 
 ## Spec Change Log
 
+- 2026-11-10: Kullanıcı Railway'e yayını ve geliştirmeye devamı istedi.
+  Ek teslimat: `docs/RAILWAY_DEPLOYMENT.md`. Mevcut Compose kabul maddesi
+  değiştirilmedi: Railway pilotunun çalışması, yerel Compose'un test edildiği
+  anlamına gelmez. CR-1 düzeltmeleri ve kullanıcı logosu mevcut story üzerinde.
+
 ## Design Notes
 
 Access and refresh cookies are HttpOnly; production requires Secure. Same-origin web/API routing plus Origin validation protects cookie-authenticated writes. A database session check makes logout and permission changes immediately effective. Invitations use Mailpit locally; no raw invitation or refresh secrets enter logs.

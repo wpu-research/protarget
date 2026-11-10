@@ -21,6 +21,8 @@ export class UsersService {
   constructor(private readonly db: PrismaService, private readonly audit: AuditService,
     private readonly sessions: SessionService, private readonly mailer: InvitationMailer) {}
 
+  capabilities() { return { invitationsEnabled: this.mailer.enabled }; }
+
   async list(query: PaginationDto) {
     const [items, total] = await this.db.$transaction([
       this.db.user.findMany({ select: adminUserSelect, skip: query.skip, take: query.pageSize,
@@ -42,7 +44,9 @@ export class UsersService {
         throw new ApiError(400, 'INVALID_STATE_TRANSITION', 'Cannot deactivate, demote or move your own administrator account');
       }
       const org = await tx.organization.findUnique({ where: { id: dto.orgId ?? before.orgId } });
-      if (!org || !org.active) throw new ApiError(400, 'VALIDATION_FAILED', 'An active organization is required');
+      if (!org || (!org.active && (dto.active === true || org.id !== before.orgId))) {
+        throw new ApiError(400, 'VALIDATION_FAILED', 'An active organization is required for activation or transfer');
+      }
       const role = dto.role ?? before.role;
       assertCompatible(role, org.type);
       if (before.role === Role.ADMIN && before.active && before.org.active &&
@@ -68,6 +72,7 @@ export class UsersService {
   }
 
   async invite(actor: Principal, dto: InviteUserDto) {
+    this.mailer.assertEnabled(); // Do not create an undeliverable invitation or pending account.
     const rawToken = opaqueToken();
     const issued = await this.db.serializable(async tx => {
       await this.sessions.requireAdmin(tx, actor);
@@ -95,14 +100,19 @@ export class UsersService {
     // SMTP must be outside retryable transactions. Delivery failures preserve an inactive user
     // so an administrator can retry, but invalidate the undelivered invitation immediately.
     const sent = await this.mailer.send(dto.email, rawToken);
-    await this.db.serializable(async tx => {
+    const status = await this.db.serializable(async tx => {
+      const current = await tx.invitation.findUniqueOrThrow({ where: { id: issued.invitation.id } });
+      // Possession and acceptance prove delivery even if the SMTP acknowledgement timed out.
+      const delivered = sent || current.acceptedAt !== null;
       await tx.invitation.update({ where: { id: issued.invitation.id }, data: {
-        deliveryStatus: sent ? 'sent' : 'failed', ...(sent ? {} : { revokedAt: new Date() }),
+        deliveryStatus: delivered ? 'sent' : 'failed', ...(delivered ? {} : { revokedAt: new Date() }),
       } });
       await this.audit.append(tx, { userId: actor.user.id,
-        action: sent ? 'INVITATION_DELIVERED' : 'INVITATION_DELIVERY_FAILED',
-        entityType: 'user', entityId: issued.user.id, metadata: { invitationId: issued.invitation.id } });
+        action: delivered ? 'INVITATION_DELIVERED' : 'INVITATION_DELIVERY_FAILED',
+        entityType: 'user', entityId: issued.user.id,
+        metadata: { invitationId: issued.invitation.id, transportAcknowledged: sent } });
+      return delivered ? 'sent' : 'failed';
     });
-    return { ...issued, invitation: { ...issued.invitation, status: sent ? 'sent' : 'failed' } };
+    return { ...issued, invitation: { ...issued.invitation, status } };
   }
 }

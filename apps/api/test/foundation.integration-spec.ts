@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { hash, compare } from 'bcryptjs';
 import request, { Response as TestResponse } from 'supertest';
 import type { INestApplication } from '@nestjs/common';
@@ -8,6 +8,7 @@ import { createApp, generateSwaggerDocument } from '../src/main';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { AuditService } from '../src/modules/audit/audit.service';
 import { hashToken, ACCESS_COOKIE, REFRESH_COOKIE } from '../src/modules/auth/tokens';
+import { RuntimeConfig } from '../src/common/runtime-config';
 
 // Only SMTP is mocked; all repositories, guards, JWTs, bcrypt and transactions are real.
 const deliveries = new Map<string, string>();
@@ -504,5 +505,76 @@ describe('Phase 0 foundation — dedicated real PostgreSQL', () => {
     const email = `${randomUUID()}@example.test`;
     for (let attempt = 0; attempt < 10; attempt++) await post('/auth/login').send({ email, password }).expect(401);
     await post('/auth/login').send({ email, password }).expect(429);
+  });
+
+  it('keeps unrelated signed client buckets independent and rejects spoofed proxy headers', async () => {
+    const config = app.get(RuntimeConfig).values;
+    const before = config.proxySecret;
+    const secret = randomBytes(48).toString('base64url');
+    config.proxySecret = secret;
+    const ip = '198.51.100.19';
+    const secondIp = '198.51.100.20';
+    const key = createHmac('sha256', config.secret).update(`login:ip:${ip}`).digest('hex');
+    const key2 = createHmac('sha256', config.secret).update(`login:ip:${secondIp}`).digest('hex');
+    const signed = (address: string) => {
+      const time = String(Date.now());
+      return post('/auth/login').set({
+        'x-protarget-client-ip': address, 'x-protarget-proxy-time': time,
+        'x-protarget-proxy-signature': createHmac('sha256', secret)
+          .update(`${time}\n${address}\nPOST\n/api/v1/auth/login`).digest('hex'),
+      });
+    };
+    try {
+      await db.authRateLimit.upsert({ where: { key }, update: { count: 100, startedAt: new Date() },
+        create: { key, count: 100, startedAt: new Date() } });
+      await db.authRateLimit.deleteMany({ where: { key: key2 } });
+      await signed(ip).send({ email: `${randomUUID()}@example.test`, password }).expect(429);
+      await signed(secondIp).send({ email: `${randomUUID()}@example.test`, password }).expect(401);
+      await post('/auth/login').set('x-forwarded-for', secondIp)
+        .send({ email: `${randomUUID()}@example.test`, password }).expect(403);
+    } finally {
+      config.proxySecret = before;
+      await db.authRateLimit.deleteMany({ where: { key: { in: [key, key2] } } });
+    }
+  });
+
+  it('disables invitations before persistence when no mail provider is configured', async () => {
+    const config = app.get(RuntimeConfig).values;
+    const before = config.invitationsEnabled;
+    config.invitationsEnabled = false;
+    const email = `${randomUUID()}@example.test`;
+    try {
+      await get('/users/capabilities', jars.admin).expect(200, { invitationsEnabled: false });
+      await post('/users/invite', jars.admin).send({
+        name: 'Not created', email, role: 'AGENCY', orgId: orgs.agencyA,
+      }).expect(503);
+      expect(await db.user.findUnique({ where: { email } })).toBeNull();
+    } finally { config.invitationsEnabled = before; }
+  });
+
+  it('allows deactivation inside an inactive organization without allowing reactivation', async () => {
+    const orgId = await makeOrg('AGENCY');
+    const user = await makeUser('AGENCY', { orgId });
+    await db.organization.update({ where: { id: orgId }, data: { active: false } });
+    await patch(`/users/${user.id}`, jars.admin).send({ active: false }).expect(200);
+    expect((await db.user.findUniqueOrThrow({ where: { id: user.id } })).active).toBe(false);
+    await patch(`/users/${user.id}`, jars.admin).send({ active: true }).expect(400);
+  });
+
+  it('preserves an accepted invitation when SMTP delivery succeeded but acknowledgement timed out', async () => {
+    mockSendMail.mockImplementationOnce(async (message: { to: string; text: string }) => {
+      const url = new URL(message.text.split('\n').find(line => line.startsWith(origin))!);
+      const token = new URLSearchParams(url.hash.slice(1)).get('token')!;
+      await post('/auth/accept-invite').send({ token, password }).expect(200);
+      throw new Error('Simulated late SMTP ACK timeout');
+    });
+    const response = await post('/users/invite', jars.admin).send({
+      email: `${randomUUID()}@example.test`, name: 'Accepted before ACK', orgId: orgs.agencyA, role: 'AGENCY',
+    }).expect(201);
+    expect(response.body.invitation.status).toBe('sent');
+    const stored = await db.invitation.findUniqueOrThrow({ where: { id: response.body.invitation.id } });
+    expect(stored.acceptedAt).not.toBeNull();
+    expect(stored.revokedAt).toBeNull();
+    expect(stored.deliveryStatus).toBe('sent');
   });
 });

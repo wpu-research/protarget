@@ -14,15 +14,22 @@ export function validateEnvironment(env: NodeJS.ProcessEnv) {
   let database: URL;
   try { database = new URL(env.DATABASE_URL ?? ''); } catch { return fail('DATABASE_URL'); }
   if (!['postgres:', 'postgresql:'].includes(database.protocol)) fail('DATABASE_URL');
+  const proxySecret = env.PROXY_SHARED_SECRET;
+  if ((nodeEnv === 'production' || proxySecret) && (!proxySecret ||
+      Buffer.byteLength(proxySecret) < 32 || new Set(proxySecret).size < 10 || proxySecret === secret)) {
+    fail('PROXY_SHARED_SECRET');
+  }
+  if (env.INVITATIONS_ENABLED && !['true', 'false'].includes(env.INVITATIONS_ENABLED)) fail('INVITATIONS_ENABLED');
+  const invitationsEnabled = env.INVITATIONS_ENABLED !== 'false';
   const smtpHost = env.SMTP_HOST?.trim();
   const smtpFrom = env.SMTP_FROM?.trim();
   const smtpPort = Number(env.SMTP_PORT ?? '587');
-  if (!smtpHost || /[\r\n]/.test(smtpHost)) fail('SMTP_HOST');
-  if (!smtpFrom || /[\r\n]/.test(smtpFrom) || !smtpFrom.includes('@')) fail('SMTP_FROM');
+  if (invitationsEnabled && (!smtpHost || /[\r\n]/.test(smtpHost))) fail('SMTP_HOST');
+  if (invitationsEnabled && (!smtpFrom || /[\r\n]/.test(smtpFrom) || !smtpFrom.includes('@'))) fail('SMTP_FROM');
   if (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535) fail('SMTP_PORT');
   if (Boolean(env.SMTP_USER) !== Boolean(env.SMTP_PASSWORD)) fail('SMTP_USER/SMTP_PASSWORD');
   return {
-    nodeEnv, secret, webOrigin: origin.origin, smtpHost: smtpHost!, smtpFrom: smtpFrom!,
+    nodeEnv, secret, proxySecret, invitationsEnabled, webOrigin: origin.origin, smtpHost: smtpHost!, smtpFrom: smtpFrom!,
     smtpPort, smtpUser: env.SMTP_USER, smtpPassword: env.SMTP_PASSWORD,
     secureCookies: nodeEnv === 'production',
   };

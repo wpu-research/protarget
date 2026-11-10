@@ -1,5 +1,20 @@
 # Ertelenen işler — Faz 0 / CR-1
 
+## 10 Kasım 2026 — Railway hazırlık düzeltmeleri
+
+CR-2'ye sunulan değişiklikler:
+- F0-001: Railway ingress IP'si web/API arasında imzalanır; hesap limiti
+  korunur; farklı istemci kotası + imzasız sahte başlık testi geçti.
+  Canlı ingress'in gerçek başlık davranışı yayında ayrıca doğrulanacak.
+- F0-002/003/004/007/008/013: kod düzeltmeleri ve ilgili DB/browser
+  regresyonları eklendi. Son yerel suite'ler başarılı; CR-2 bekleniyor.
+- F0-011: gerçek secret/browser artifact taraması eklendi, **kısmi**;
+  tüm auth logları için sentinel kapsamı hâlâ eksik.
+- F0-005/006/009/010/012: bu turda kapatılmadı. Owner migration/status yolu
+  Railway için eklendi; eski Compose yönergesi ayrı belge açığı olarak kalır.
+
+Orijinal CR-1 kayıtları aşağıda tarihsel olarak korunur.
+
 Tarih: 10 Kasım 2026. İncelenen implementation commit: `eec3342`.
 Üç bağımsız reviewer paralel çalıştı: blind-hunter, edge-case-hunter,
 acceptance-auditor. Kod değiştirmediler; raporlar birleştirildi.

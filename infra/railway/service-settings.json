@@ -1,0 +1,22 @@
+{
+  "migration": {
+    "build.builder": "DOCKERFILE",
+    "build.dockerfilePath": "infra/Dockerfile.api",
+    "deploy.startCommand": "node infra/railway/migrate.cjs",
+    "deploy.restartPolicyType": "NEVER"
+  },
+  "api": {
+    "build.builder": "DOCKERFILE",
+    "build.dockerfilePath": "infra/Dockerfile.api",
+    "deploy.healthcheckPath": "/api/v1/health",
+    "deploy.healthcheckTimeout": 120,
+    "deploy.restartPolicyType": "ON_FAILURE"
+  },
+  "web": {
+    "build.builder": "DOCKERFILE",
+    "build.dockerfilePath": "infra/Dockerfile.web",
+    "deploy.healthcheckPath": "/api/v1/health",
+    "deploy.healthcheckTimeout": 120,
+    "deploy.restartPolicyType": "ON_FAILURE"
+  }
+}

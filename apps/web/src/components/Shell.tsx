@@ -6,13 +6,14 @@ import type { Identity } from '@protarget/shared';
 import type { NavItem } from '@/lib/nav';
 import { LanguageSwitch, useText } from './Locale';
 import { Logout } from './AuthForms';
+import { Brand } from './Brand';
 export function Shell({ nav, user, children }: { nav: NavItem[]; user: Identity; children: ReactNode }) {
   const text = useText();
   const pathname = usePathname();
   return <div className="shell">
     <a className="skip" href="#main">{text('common.skip')}</a>
     <aside className="sidebar">
-      <Link href="/" className="wordmark">protarget<span>.</span></Link>
+      <Link href="/" className="brand-link" aria-label="Protarget"><Brand /></Link>
       <span className="phase-chip">{text('foundation.phase')}</span>
       <nav aria-label={text('common.navigation')}>{nav.map(item =>
         <Link key={item.href} href={item.href} aria-current={pathname === item.href ? 'page' : undefined} className="nav-link">

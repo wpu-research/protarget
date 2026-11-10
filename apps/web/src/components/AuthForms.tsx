@@ -41,8 +41,13 @@ export function InviteForm() {
     initialized.current = true;
     token.current = new URLSearchParams(window.location.hash.slice(1)).get('token') ?? '';
     setValid(/^[A-Za-z0-9_-]{43}$/.test(token.current));
-    // Fragment never reaches the server; remove it from the visible URL/history.
-    window.history.replaceState(null, '', window.location.pathname);
+    // Scrub immediately, then synchronize Next's history integration after parent
+    // mount effects have installed it. No token goes into storage or router state.
+    const cleanPath = window.location.pathname;
+    window.history.replaceState(null, '', cleanPath);
+    queueMicrotask(() => {
+      if (window.location.pathname === cleanPath) window.history.replaceState(null, '', cleanPath);
+    });
   }, []);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

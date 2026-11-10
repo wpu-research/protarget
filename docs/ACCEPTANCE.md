@@ -1,5 +1,22 @@
 # Faz 0 doğrulama kaydı
 
+## Railway / logo düzeltme turu — 10 Kasım 2026
+
+Yerel son sonuç: build **8/8**, typecheck **8 paket**, lint başarılı;
+**19 unit + 40 gerçek PostgreSQL integration + 11 Chromium E2E + 2 web proxy
+testi = 72 başarılı test**. OpenAPI capabilities endpoint'iyle yeniden üretildi.
+Gerçek local/canlı yapılandırmadan 6 secret değeriyle 15 browser asset dosyası
+tarandı; eşleşme yok. Bu kontrol bütün log yüzeyleri için sentinel testinin
+yerine geçmez. Kaynak görselin alfa kanalı ve logo/yazı yerleşimi E2E'de doğrulandı.
+
+İlk iki yeni E2E turu 10/11 geçti: locale refresh'in davet fragment'ını geri
+getirmesi bulundu. Next history senkronizasyonu düzeltildi; hedefli test 1/1,
+ardından tam suite **11/11** geçti. Başarısız sonuçlar gizlenmedi.
+
+Railway proje/DB/servis ayarları oluşturuldu; bu kayıt anında uygulama container
+deploy ve dış HTTPS kabulü henüz çalıştırılmadı. Güncel kanıt:
+`docs/RAILWAY_DEPLOYMENT.md`. Önceki Compose engeli aşağıda aynen korunur.
+
 Tarih: **10 Kasım 2026**. Branch: `story/phase-0-foundation`.
 Baseline: `9d15c72`. Test çalışma ağacı: `/tmp/protarget-phase0-work`.
 

@@ -17,3 +17,7 @@ _vault
 .codex
 .agents
 docs/source
+.local
+.credentials
+.railway
+_bmad-output

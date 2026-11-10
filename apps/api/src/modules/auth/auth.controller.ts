@@ -5,6 +5,7 @@ import type { Request, Response } from 'express';
 import { RuntimeConfig } from '../../common/runtime-config';
 import type { AuthRequest } from '../../common/identity';
 import { ApiError } from '../../common/api-error';
+import { clientAddress } from '../../common/client-address';
 import { AuthService } from './auth.service';
 import { AcceptInviteDto, LoginDto } from './auth.dto';
 import { Public, Roles } from './auth.policy';
@@ -16,7 +17,7 @@ export class AuthController {
 
   @Public() @Post('login') @HttpCode(200)
   async login(@Body() dto: LoginDto, @Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const result = await this.auth.login(dto, req.ip ?? 'unknown');
+    const result = await this.auth.login(dto, clientAddress(req, this.config.values.proxySecret));
     setAuthCookies(res, this.config, result);
     return { user: result.user };
   }
@@ -24,7 +25,7 @@ export class AuthController {
   @Public() @Post('refresh') @HttpCode(200)
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     try {
-      const result = await this.auth.refresh(readCookie(req, REFRESH_COOKIE), req.ip ?? 'unknown');
+      const result = await this.auth.refresh(readCookie(req, REFRESH_COOKIE), clientAddress(req, this.config.values.proxySecret));
       setAuthCookies(res, this.config, result);
       return { user: result.user };
     } catch (error) {
@@ -43,7 +44,7 @@ export class AuthController {
 
   @Public() @Post('accept-invite') @HttpCode(200)
   accept(@Body() dto: AcceptInviteDto, @Req() req: Request) {
-    return this.auth.acceptInvite(dto, req.ip ?? 'unknown');
+    return this.auth.acceptInvite(dto, clientAddress(req, this.config.values.proxySecret));
   }
 }
 

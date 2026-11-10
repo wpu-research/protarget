@@ -1,4 +1,5 @@
 import { apiOrigin } from '@/lib/server';
+import { proxyAddressHeaders } from '@/lib/proxy-address';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,7 +37,12 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
       const value = request.headers.get(name);
       if (value) headers.set(name, value);
     }
-    // Client forwarding headers are deliberately not trusted or passed upstream.
+    // Only the documented Railway edge address is signed; user forwarding headers are discarded.
+    if (path[0] === 'auth' && ['login', 'refresh', 'accept-invite'].includes(path[1])) {
+      for (const [name, value] of Object.entries(proxyAddressHeaders(request, `/api/v1/${path.join('/')}`))) {
+        headers.set(name, value);
+      }
+    }
     const upstream = await fetch(`${apiOrigin()}/api/v1/${path.join('/')}${new URL(request.url).search}`, {
       method: request.method, headers, body, cache: 'no-store', redirect: 'error',
       signal: AbortSignal.timeout(30000),

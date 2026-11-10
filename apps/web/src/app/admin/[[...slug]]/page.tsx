@@ -21,11 +21,13 @@ export default async function AdminPage({ params, searchParams }: {
   if (path === '/admin/organizations') return <>{heading}<p className="page-description">{t('organization.description', language)}</p>
     <Organizations data={await serverApi<PageResult<Organization>>(`/organizations?page=${page}`)} /></>;
   if (path === '/admin/organizations/users') {
-    const [data, organizations] = await Promise.all([
+    const [data, organizations, capabilities] = await Promise.all([
       serverApi<PageResult<ManagedUser>>(`/users?page=${page}`),
       serverApi<PageResult<Organization>>('/organizations?pageSize=100'),
+      serverApi<{ invitationsEnabled: boolean }>('/users/capabilities'),
     ]);
-    return <>{heading}<p className="page-description">{t('user.description', language)}</p><Users data={data} organizations={organizations} /></>;
+    return <>{heading}<p className="page-description">{t('user.description', language)}</p>
+      <Users data={data} organizations={organizations} invitationsEnabled={capabilities.invitationsEnabled} /></>;
   }
   if (path === '/admin/settings/audit-log') return <>{heading}<p className="page-description">{t('audit.description', language)}</p>
     <AuditTable data={await serverApi<PageResult<AuditRecord>>(`/audit-logs?page=${page}`)} /></>;

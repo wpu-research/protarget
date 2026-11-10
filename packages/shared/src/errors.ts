@@ -26,6 +26,7 @@ export type ApiErrorCode =
   | 'INVALID_STATE_TRANSITION'
   | 'MAPPING_ERROR'
   | 'RATE_LIMITED'
+  | 'INVITATIONS_DISABLED'
   | 'INTERNAL_ERROR';
 
 /** Spec v2 §33 standart hata zarfı. */

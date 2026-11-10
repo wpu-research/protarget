@@ -1,4 +1,5 @@
-import { test, expect, type Page, type APIRequestContext } from '@playwright/test';
+import { test, expect, type Page, type APIRequestContext, type BrowserContext } from '@playwright/test';
+import type { ManagedUser, PageResult } from '@protarget/shared';
 import { createServer, type Server } from 'node:net';
 import { randomBytes, randomUUID } from 'node:crypto';
 import tr from '../../../packages/i18n/src/tr.json';
@@ -21,6 +22,15 @@ async function login(page: Page, email: string, password: string) {
 }
 async function adminContext(page: Page) {
   await page.context().addCookies((await admin.storageState()).cookies);
+}
+async function findManagedUser(email: string) {
+  for (let page = 1; ; page++) {
+    const response = await admin.get(`/api/v1/users?page=${page}&pageSize=100`);
+    expect(response.status()).toBe(200);
+    const result = await response.json() as PageResult<ManagedUser>;
+    const user = result.items.find(user => user.email === email);
+    if (user || result.page * result.pageSize >= result.total) return user;
+  }
 }
 
 test.beforeAll(async ({ playwright }) => {
@@ -75,6 +85,27 @@ test('TR/EN dictionaries have identical keys and interpolation placeholders', ()
     expect(tr[key].match(/\{\w+\}/g) ?? []).toEqual(en[key].match(/\{\w+\}/g) ?? []);
   }
 });
+test('transparent logo loads above the Protarget wordmark on login and panel', async ({ page }) => {
+  await page.goto('/login');
+  const logo = page.locator('.brand-logo');
+  await expect(logo).toBeVisible();
+  const alpha = await logo.evaluate((image: HTMLImageElement) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext('2d')!;
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    return { transparent: pixels.some((value, index) => index % 4 === 3 && value === 0),
+      opaque: pixels.some((value, index) => index % 4 === 3 && value === 255) };
+  });
+  expect(alpha).toEqual({ transparent: true, opaque: true });
+  await adminContext(page);
+  await page.goto('/admin');
+  const mark = await page.locator('.sidebar .brand-logo').boundingBox();
+  const word = await page.locator('.sidebar .wordmark').boundingBox();
+  expect(mark).not.toBeNull(); expect(word).not.toBeNull();
+  expect(mark!.y + mark!.height).toBeLessThanOrEqual(word!.y);
+});
 test('anonymous admin access redirects to login; invalid login is generic', async ({ page }) => {
   await page.goto('/admin/organizations');
   await expect(page).toHaveURL(/\/login$/);
@@ -108,6 +139,20 @@ test('admin browser login, organization create/edit, nullable labels and audit s
   const updated = await (await admin.get(`/api/v1/organizations/${organization.id}`)).json();
   expect(updated.brandName).toBeNull();
   expect(updated.spendVisible).toBe(true);
+  // A server refresh updates picker metadata without clearing the selected org or draft.
+  await page.goto('/admin/organizations/users');
+  await page.getByLabel(tr['field.organization'], { exact: true }).selectOption(organization.id);
+  await page.getByLabel(tr['field.name'], { exact: true }).fill('Unsaved invitation draft');
+  const refreshedName = `${name} refreshed`;
+  expect((await admin.patch(`/api/v1/organizations/${organization.id}`, { data: { name: refreshedName } })).status()).toBe(200);
+  await page.getByRole('button', { name: tr['common.language'], exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+  const picker = page.getByLabel(en['field.organization'], { exact: true });
+  await expect(picker).toHaveValue(organization.id);
+  await expect(picker.locator('option:checked')).toHaveText(refreshedName);
+  await expect(page.getByLabel(en['field.name'], { exact: true })).toHaveValue('Unsaved invitation draft');
+  await page.getByRole('button', { name: en['common.language'], exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('lang', 'tr');
   await page.goto('/admin/settings/audit-log');
   await expect(page.getByRole('heading', { name: 'Denetim Kaydı', exact: true })).toBeVisible();
   await expect(page.getByRole('table')).toContainText('ORGANIZATION_UPDATED');
@@ -142,38 +187,90 @@ test('support browser routing permits health/identity but not business data', as
   expect((await page.request.get('/api/v1/organizations')).status()).toBe(403);
   expect((await page.request.get('/api/v1/users')).status()).toBe(403);
 });
-test('invite UI sends SMTP mail; fragment acceptance, single-use token and logout work', async ({ page, browser }) => {
-  await adminContext(page);
-  await page.goto('/admin/organizations/users');
+test('inactive invite name edit, locale-safe fragment acceptance, single-use token and cleanup', async ({ page, browser }) => {
   const email = `browser-${runId}@example.test`;
-  await page.getByLabel('Ad / unvan', { exact: true }).fill('Invited Browser User');
-  await page.getByLabel('E-posta', { exact: true }).fill(email);
-  await page.getByLabel('Organizasyon', { exact: true }).selectOption('00000000-0000-4000-8000-000000000002');
-  await page.getByRole('button', { name: 'Davet gönder', exact: true }).click();
-  await expect(page.getByRole('status')).toContainText('e-postası gönderildi');
-  const message = messages.find(value => value.includes(email)) ?? '';
-  const decoded = message.replace(/=\r?\n/g, '').replace(/=([A-Fa-f0-9]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
-  const link = decoded.match(/https?:\/\/[^\s]+\/accept-invite#token=[A-Za-z0-9_-]{43}/)?.[0];
-  expect(Boolean(link)).toBe(true);
-  const password = randomBytes(18).toString('base64url');
-  const context = await browser.newContext({ baseURL });
-  const invited = await context.newPage();
+  let invitedUserId: string | undefined;
+  let context: BrowserContext | undefined;
   try {
+    await adminContext(page);
+    await page.goto('/admin/organizations/users');
+    await page.getByLabel('Ad / unvan', { exact: true }).fill('Invited Browser User');
+    await page.getByLabel('E-posta', { exact: true }).fill(email);
+    await page.getByLabel('Organizasyon', { exact: true }).selectOption('00000000-0000-4000-8000-000000000002');
+    const [invitationResponse] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/users/invite' && response.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Davet gönder', exact: true }).click(),
+    ]);
+    const issued = await invitationResponse.json();
+    invitedUserId = issued.user?.id;
+    expect(invitationResponse.status()).toBe(201);
+    expect(Boolean(invitedUserId)).toBe(true);
+    await expect(page.getByRole('status')).toContainText('e-postası gönderildi');
+
+    const userPatches: unknown[] = [];
+    page.on('request', request => {
+      if (request.method() === 'PATCH' && new URL(request.url()).pathname === `/api/v1/users/${invitedUserId}`) {
+        userPatches.push(request.postDataJSON());
+      }
+    });
+    const invitedRow = page.getByRole('row').filter({ hasText: email });
+    await invitedRow.getByRole('button', { name: 'Düzenle Invited Browser User', exact: true }).click();
+    await expect(page.getByLabel(tr['common.active'], { exact: true })).not.toBeChecked();
+    await page.getByRole('button', { name: tr['common.save'], exact: true }).click();
+    await expect(page.getByRole('status')).toHaveText(tr['common.saved']);
+    expect(userPatches).toEqual([]);
+
+    const renamed = 'Renamed Invited Browser User';
+    await page.getByLabel(tr['field.name'], { exact: true }).fill(renamed);
+    const [updateResponse] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === `/api/v1/users/${invitedUserId}` && response.request().method() === 'PATCH'),
+      page.getByRole('button', { name: tr['common.save'], exact: true }).click(),
+    ]);
+    expect(updateResponse.status()).toBe(200);
+    expect(userPatches).toEqual([{ name: renamed }]);
+    expect((await updateResponse.json()).active).toBe(false);
+    await expect(invitedRow).toContainText(renamed);
+
+    const message = messages.find(value => value.includes(email)) ?? '';
+    const decoded = message.replace(/=\r?\n/g, '').replace(/=([A-Fa-f0-9]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+    const link = decoded.match(/https?:\/\/[^\s]+\/accept-invite#token=[A-Za-z0-9_-]{43}/)?.[0];
+    expect(Boolean(link)).toBe(true);
+    const password = randomBytes(18).toString('base64url');
+    context = await browser.newContext({ baseURL });
+    const invited = await context.newPage();
     await invited.goto(link!);
-    await expect(invited).toHaveURL(/\/accept-invite$/);
+    await expect.poll(() => new URL(invited.url()).hash.length).toBe(0);
     await invited.getByLabel('Parola', { exact: true }).fill(password);
     await invited.getByLabel('Parola tekrarı', { exact: true }).fill(password);
-    await invited.getByRole('button', { name: 'Hesabı etkinleştir', exact: true }).click();
-    await expect(invited.getByRole('status')).toContainText('etkinleştirildi');
+    await invited.getByRole('button', { name: tr['common.language'], exact: true }).click();
+    await expect(invited.locator('html')).toHaveAttribute('lang', 'en');
+    await expect.poll(() => new URL(invited.url()).hash.length).toBe(0);
+    expect(await invited.getByLabel(en['field.password'], { exact: true }).inputValue() === password).toBe(true);
+    expect(await invited.getByLabel(en['field.confirmPassword'], { exact: true }).inputValue() === password).toBe(true);
+    await invited.getByRole('button', { name: en['auth.accept'], exact: true }).click();
+    await expect(invited.getByRole('status')).toContainText(en['auth.inviteAccepted']);
     const token = new URLSearchParams(new URL(link!).hash.slice(1)).get('token');
     const reused = await invited.request.post('/api/v1/auth/accept-invite', { headers: { Origin: baseURL }, data: { token, password } });
     expect(reused.status()).toBe(400);
+    await invited.getByRole('button', { name: en['common.language'], exact: true }).click();
+    await expect(invited.locator('html')).toHaveAttribute('lang', 'tr');
     await login(invited, email, password);
     await expect(invited).toHaveURL(/\/portal$/);
     await invited.getByRole('button', { name: 'Çıkış yap', exact: true }).click();
     await expect(invited).toHaveURL(/\/login$/);
     expect((await invited.request.get('/api/v1/me')).status()).toBe(401);
-  } finally { await context.close(); }
+  } finally {
+    try {
+      // Recover the ID even if the invite committed but a later UI/response assertion failed.
+      const id = invitedUserId ?? (await findManagedUser(email))?.id;
+      if (id) {
+        const response = await admin.patch(`/api/v1/users/${id}`, { data: { active: false } });
+        expect(response.status()).toBe(200);
+        expect((await response.json()).active).toBe(false);
+        expect((await findManagedUser(email))?.active).toBe(false);
+      }
+    } finally { await context?.close(); }
+  }
 });
 test('expired access cookie renews through HttpOnly refresh cookie, including two tabs', async ({ page }) => {
   // Use an independent session; do not revoke the shared setup administrator session.

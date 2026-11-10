@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createTransport } from 'nodemailer';
 import { RuntimeConfig } from '../../common/runtime-config';
+import { ApiError } from '../../common/api-error';
 
 @Injectable()
 export class InvitationMailer {
@@ -16,7 +17,13 @@ export class InvitationMailer {
     });
   }
 
+  get enabled() { return this.config.values.invitationsEnabled; }
+  assertEnabled() {
+    if (!this.enabled) throw new ApiError(503, 'INVITATIONS_DISABLED', 'Invitation delivery is not configured');
+  }
+
   async send(email: string, rawToken: string): Promise<boolean> {
+    this.assertEnabled();
     // Fragment keeps the token out of web-server request and Referer logs.
     const url = `${this.config.values.webOrigin}/accept-invite#token=${encodeURIComponent(rawToken)}`;
     try {

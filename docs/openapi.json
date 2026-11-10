@@ -299,6 +299,25 @@
         ]
       }
     },
+    "/api/v1/users/capabilities": {
+      "get": {
+        "operationId": "UsersController_capabilities",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v1/users/{id}": {
       "patch": {
         "operationId": "UsersController_update",

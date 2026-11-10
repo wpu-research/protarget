@@ -12,6 +12,8 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
   @Get()
   list(@Query() query: PaginationDto) { return this.users.list(query); }
+  @Get('capabilities')
+  capabilities() { return this.users.capabilities(); }
   @Patch(':id')
   update(@Req() req: AuthRequest, @Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserDto) {
     return this.users.update(req.principal, id, dto);

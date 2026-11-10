@@ -1,4 +1,5 @@
 {
+  "user.invitesDisabled": "E-posta sağlayıcısı yapılandırılana kadar yeni kullanıcı daveti kapalıdır. Mevcut kullanıcıları düzenleyebilirsiniz.",
   "app.name": "Protarget pDOOH",
   "nav.dashboard": "Panel",
   "nav.inventory": "Envanter",

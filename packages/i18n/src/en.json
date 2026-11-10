@@ -1,4 +1,5 @@
 {
+  "user.invitesDisabled": "New invitations are disabled until an email provider is configured. Existing users can still be edited.",
   "app.name": "Protarget pDOOH",
   "nav.dashboard": "Dashboard",
   "nav.inventory": "Inventory",
