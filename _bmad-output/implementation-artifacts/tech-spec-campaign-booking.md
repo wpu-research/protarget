@@ -103,6 +103,12 @@ Geçersiz geçiş 409. COMPLETED/CANCELLED salt okunur. LIVE/PAUSED iken yalnız
 ## Spec Change Log
 
 - 2026-11-11: Kullanıcı tarafından onaylandı ("Onaylıyorum, başla").
+- 2026-11-11 (CR-1 sonrası, kullanıcı: "Önerilenlerle düzelt"):
+  - G1: CMS_UPLOADED yalnız son etkin plan değişikliğinden (`planChangedAt`) sonra sunucuya kaydedilmişse (`recordedAt`) sayılır. CMS işlemi yalnız READY/LIVE/PAUSED'da; NOTE ayrıca DRAFT'ta. COMPLETED/CANCELLED salt okunur kalır.
+  - G2: Onaylı kreatif gerekçeyle `REVOKED` yapılabilir. Bağlı READY kampanyalar DRAFT'a döner; LIVE/PAUSED kampanyalarda `REVOKED_CREATIVE` uyarısı çıkar ve kreatif plan kilidine rağmen çözülebilir.
+  - G3: Para birimi, tolerans ve faturalama esası yalnız fiyat modeli seçilince gösterilir (yalnız arayüz).
+  - Belgelenen sapmalar (P31): el ile READY→DRAFT izinli; `performedAt` için 60 sn istemci saat toleransı; `maxPlayoutsPerHourPerScreen` yalnız bilgi amaçlı plan frekansı (kapasite hesabı yok); REJECTED kayıtlar mükerrer sayılmaz.
+  - P33 defer'e taşındı: migration yükseltme kontrolü owner rolü gerektirir; test rolü yetkisiz. Elle yapılan satır sayısı karşılaştırması kanıt olarak kalır.
 
 ## Verification
 
@@ -132,3 +138,62 @@ Geçersiz geçiş 409. COMPLETED/CANCELLED salt okunur. LIVE/PAUSED iken yalnız
   görünüyor; reklamveren filtresi `/organizations`'tan en fazla 1000 kayıt okuyor;
   portal navigasyonunda önceden var olan “Kampanyalar/Rezervasyonlar” gelecek
   yer tutucuları duruyor (veri yok).
+
+### Code Review Findings — Tur 1 (2026-11-11) → Düzeltildi, CR-2 bekleniyor
+
+Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (hepsi tamamlandı). 103 ham bulgu → birleştirme sonrası 3 intent_gap, 33 patch, 7 defer; 15 red.
+
+**Intent gap (kullanıcı kararı gerekli)**
+- G1 (yüksek) CMS_UPLOADED kanıtı hiç eskimiyor: plan değişikliği, ekran çıkar/ekle, kreatif değişimi ya da DRAFT'ta yazılmış kayıt LIVE kapısını açıyor. Öneri: yalnız son plan değişikliğinden sonra (`planChangedAt`) yazılmış CMS_UPLOADED sayılsın; CMS işlemi DRAFT'ta kabul edilmesin. — campaigns.service.ts validate/recordCmsOperation
+- G2 (orta) Onaylı kreatif geri çekilemiyor (trigger statüyü donduruyor, uç nokta yok). Öneri: gerekçeli APPROVED→REVOKED (yeni durum) ve bağlı READY kampanyaları DRAFT'a düşürme; ya da bilinçli olarak kapsam dışı bırakma.
+- G3 (düşük) Şema varsayılanları (TRY, %1 tolerans, CONTRACTED) admin girmiş gibi gösteriliyor. BUILD_PROMPT %1'i belirtiyor; ticari model seçilmeden bu alanlar gizlensin mi?
+
+**Patch — yüksek/orta**
+- P1 Kısa flight ile haftalık dilimler: NO_PLAYBACK_WINDOW yalnız soyut haftada hesaplanıyor; flight içinde hiç oynatma günü yoksa READY/LIVE geçiyor. Flight aralığıyla kesiştir. — booking-rules.ts
+- P2 CMS işlemleri COMPLETED/CANCELLED'da API'den yazılabiliyor; NOTE boş not kabul ediyor. — recordCmsOperation
+- P3 Büyük harfli UUID: depolama anahtarı regex'i 500 veriyor, replacesId ve advertiser karşılaştırması yanlış, ArrayUnique büyük/küçük harf ayrımı yanlış 409. DB'den dönen id'yi kullan / DTO'da küçült. — creatives.service.ts, campaigns.service.ts, campaigns.dto.ts
+- P4 `replaceSchedule` ekran bazlı eski plan satırlarını audit'siz siliyor; `screenId: null` ile sınırla. — campaigns.service.ts
+- P5 `NODE_ENV` ayarlı değilse üretimde geçici diske yazılıyor; geçici dizin yalnız NODE_ENV açıkça development/test iken. — object-storage.ts
+- P6 MP4 kontrolü MOV/3GP'yi geçiriyor (`format_name` mov ailesi); `major_brand` kontrolü, `-protocol_whitelist file`, `attached_pic` akışlarını atla, döndürme (rotation) ile boyut değişimi, görsel boyut üst sınırı. — media.ts
+- P7 ffprobe zaman aşımı/ENOBUFS/EACCES/sinyal kalıcı REJECTED üretiyor; 503 olmalı. — media.ts
+- P8 `storage.put` temizleme try'ı dışında; yarım nesne kalıyor. S3 PutObject akışı SDK yeniden denemesinde tüketilmiş oluyor. — creatives.service.ts, object-storage.ts
+- P9 Değer değiştirmeyen PATCH / 0 satırlık ekle-çıkar READY'yi DRAFT'a düşürüyor ve boş audit yazıyor; sihirbaz tüm ticari alanları gönderiyor. — campaigns.service.ts, CampaignWizard.tsx
+- P10 PAUSED→LIVE bitişten sonra mümkün; READY→LIVE başlangıçtan çok önce uyarısız. — booking-rules.ts/transition
+- P11 Durdurmada eksik PLAYBACK_PAUSED ekranları kullanıcıya gösterilmiyor (yalnız audit). — CampaignDetail.tsx
+- P12 Mükerrer kontrolü yalnız uygulamada; kısmi UNIQUE (advertiserId, checksum) WHERE status<>'REJECTED'. Sürüm zinciri çatallanabiliyor (aynı replacesId iki kez). — yeni migration
+- P13 Sihirbaz düzenlemede pasif reklamveren/ajans/sahip seçenekten düşüyor (düzenleme engelleniyor, ajans sessizce siliniyor). — page.tsx, CampaignWizard.tsx
+- P14 Saniyeli `endAt`/`startAt`: dakikaya kırpma notes-only kaydı engelliyor ve READY'yi düşürüyor. — CampaignDetail.tsx, CampaignWizard.tsx, zone.ts
+
+**Patch — düşük**
+- P15 Onaylı kreatifin süresi null ise CREATIVE_TOO_LONG atlanıyor; uyarı ekle.
+- P16 Saat dilimi karşılaştırması kanonikleştirilmeden (alias/küçük harf) yanlış TIMEZONE_MISMATCH.
+- P17 `screenOptions` silinmiş seçili ekranı gizliyor.
+- P18 CHECK ihlali (23514) 500 dönüyor; 409/400'e eşle.
+- P19 Content-Disposition `'()*` kaçışı ve ASCII `filename=` yedeği.
+- P20 Etkinlik sekmesi ham İngilizce aksiyon kodu ve JSON gösteriyor; TR/EN yerelleştir.
+- P21 Boş not "Bilinmiyor" görünüyor; "Girilmedi".
+- P22 Türkçe ondalık virgül (125,50) reddediliyor; normalize et.
+- P23 Fiyat modeli "yok"a geçince tüm ticari alanlar sessizce null'lanıyor; onay iste.
+- P24 Ekran seçicide sayfa/filtre değişiminde seçim tutarsızlığı; boş son sayfa.
+- P25 Geçiş 409'unda durum yeniden yüklenmiyor; arşivlemede onay yok.
+- P26 CMS zamanı varsayılanı/sunucu mesajları (gelecek / booking'den önce) için özel TR/EN ipuçları.
+- P27 Özet adımında onay sonrası bayat onaylı kreatif sayısı.
+- P28 Kreatif adımı 100 kayıtla, `listAll` 1000 ile sessizce sınırlı; sayfalama veya uyarı.
+- P29 Gece yarısında biten dilim (08:00–00:00) "gece aşan" etiketleniyor.
+- P30 Yükleme istemcisi: onabort yok, sayfadan çıkınca XHR iptal edilmiyor, 401'de tüm dosya yeniden gönderiliyor.
+- P31 Spec/belge eşitlemesi: READY→DRAFT el ile geçiş, `performedAt` 60 sn toleransı, `maxPlayoutsPerHourPerScreen` (bilgi amaçlı), REJECTED kayıtların mükerrer sayılmaması — Spec Change Log ve CAMPAIGNS.md'ye yaz.
+- P32 Kreatif reddi/onayı CreativesStep içinde kampanyayı yenilemiyor (P27 ile aynı akış).
+- P33 Migration korunumu yalnız elle doğrulandı; otomatik upgrade testi (6 migration + eski satırlar → 7.) ekle.
+
+**Defer**
+- D1 Video önizlemede Range/206 desteği yok (Safari, ileri sarma).
+- D2 Proxy 10 dk toplam zaman aşımı; boşta kalma zaman aşımı ve 504.
+- D3 Compose `storage` profili yarım (minio depends_on, bucket kurulumu) — Docker yok.
+- D4 Çarpanın flight boyunca kısmi kapsaması (validTo flight içinde) — teslimat/impression story'si.
+- D5 Advertiser değişimi için DB düzeyinde trigger (uygulama koruyor).
+- D6 Yükleme geçici dosyası session kontrolünden önce diske yazılıyor (JWT rol guard'ı var); ayrı upload dizini + süpürücü + oran sınırı.
+- D7 DST katlanma belirsizliği (Europe/Istanbul DST kullanmıyor).
+
+**Reddedilenler (15):** `.env.example`'da S3 kimlik alanları zaten var; serializable çakışmalar `db.serializable` ile 3 kez yeniden deneniyor; LIKE joker karakterleri; depolama yapılandırma hatasında açılışta düşme (bilinçli fail-fast); overlapping onaylı çarpan (DB exclusion engelliyor); eşit çalışma saatleri (envanter reddediyor); onaylanmamış kreatif reddinin READY'yi etkilememesi; audit'te campaignId (entityId zaten kampanya); ekran seçicide aktif filtresi (pasif eklenemez); test dosya adları; S3 akış iptali (Nest StreamableFile); `durationManual` adı; legacy NOT VALID (taşınan veride ihlal yok, P18 kapsıyor); yükleme ilerleme doğrulaması; manuel READY→DRAFT (P31'de belgeleniyor).
+
+**Tur 1 düzeltme kaydı (2026-11-11):** G1–G3 kullanıcının "Önerilenlerle düzelt" kararıyla; P1–P32 uygulandı (P33 defer). Yeni migration `20261111000100_campaign_booking_review` (yalnız ekleme; test DB satır sayıları önce/sonra aynı). Bilinçli davranış: LIVE/PAUSED'da bitişi uzatmak plan değişikliğidir; yeniden LIVE'a geçmeden önce yeni CMS_UPLOADED kaydı gerekir. Ana oturum doğrulaması: build 8/8, typecheck, lint temiz; 136 API + 2 web unit, 88 integration, 42 E2E geçti. Unit-only: 23514 eşlemesi, ffprobe kesinti (503), döndürme, gerçek S3 yeniden denemesi.

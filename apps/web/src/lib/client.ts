@@ -2,7 +2,7 @@
 import type { Identity } from '@protarget/shared';
 
 export class RequestError extends Error {
-  constructor(public code: string, public status: number, public details: Record<string, unknown> = {}) { super(code); }
+  constructor(public code: string, public status: number, public details: Record<string, unknown> = {}, public serverMessage = '') { super(code); }
 }
 let refreshPromise: Promise<Identity> | undefined;
 export function renewSession(): Promise<Identity> {
@@ -35,7 +35,8 @@ export async function api<T>(path: string, options: { method?: 'POST' | 'PATCH';
   }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new RequestError(data.error?.code ?? 'SERVICE_UNAVAILABLE', response.status, data.error?.details ?? {});
+    throw new RequestError(data.error?.code ?? 'SERVICE_UNAVAILABLE', response.status, data.error?.details ?? {}, typeof data.error?.message === 'string' ? data.error.message : '');
   }
+  if (response.status === 204) return undefined as T; // no body (e.g. archive)
   return response.json();
 }

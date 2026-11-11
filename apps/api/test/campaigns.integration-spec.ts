@@ -61,6 +61,27 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     else ffmpeg('-f', 'lavfi', '-i', `color=c=${color}:s=640x360`, '-frames:v', '1', file);
     return file;
   }
+  const declare = (path: string, screenId: string, type = 'CMS_UPLOADED', extra: object = {}) =>
+    api('post', `${path}/cms-operations`).send({ screenId, type, performedAt: new Date().toISOString(), ...extra });
+  /** One screen, one approved creative, a Monday daypart and a playout goal: a booking that validates and is READY. */
+  async function readyCampaign(options: { creative?: string; file?: string } = {}) {
+    const screen = await makeScreen();
+    const campaign = await makeCampaign();
+    const path = `/campaigns/${campaign.id}`;
+    const file = options.file ?? fresh('png');
+    let creativeId = options.creative;
+    if (!creativeId) {
+      creativeId = (await upload(file, { displayDurationSeconds: '10' }).expect(201)).body.id as string;
+      await api('post', `/creatives/${creativeId}/approve`).expect(200);
+    }
+    await api('post', `${path}/screens`).send({ screenIds: [screen.id] }).expect(200);
+    await api('post', `${path}/creatives`).send({ creativeId }).expect(200);
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: 1, startTime: '08:00', endTime: '12:00' }] }).expect(200);
+    await api('patch', path).send({ primaryGoal: 'PLAYOUTS', targetPlayouts: '1000' }).expect(200);
+    await api('post', `${path}/transitions`).send({ to: 'READY' }).expect(200);
+    return { screen, campaign, path, creativeId, file };
+  }
+  const auditCount = (entityId: string) => db.auditLog.count({ where: { entityId } });
   function upload(file: string, fields: Record<string, string> = {}, jar = jars.ADMIN) {
     const call = api('post', '/creatives', jar).field('advertiserId', fields.advertiserId ?? advertiserId);
     for (const [key, value] of Object.entries(fields)) if (key !== 'advertiserId') call.field(key, value);
@@ -127,6 +148,7 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
       ['get', `/campaigns/${id}/cms-operations`], ['post', `/campaigns/${id}/cms-operations`, {}], ['get', `/campaigns/${id}/activity`],
       ['get', '/creatives'], ['get', `/creatives/${randomUUID()}`], ['get', `/creatives/${randomUUID()}/file`],
       ['post', `/creatives/${randomUUID()}/approve`], ['post', `/creatives/${randomUUID()}/reject`, { reason: 'x' }],
+      ['post', `/creatives/${randomUUID()}/revoke`, { reason: 'x' }],
     ];
     const before = { campaign: await db.campaign.findUnique({ where: { id } }), creatives: await db.creative.count(),
       cms: await db.campaignCmsOperation.count(), audits: await db.auditLog.count({ where: { entityType: { in: ['campaign', 'creative'] } } }) };
@@ -324,17 +346,25 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     const pauseAudit = await db.auditLog.findFirst({ where: { entityId: campaign.id, action: 'CAMPAIGN_STATUS_CHANGED' }, orderBy: { timestamp: 'desc' } });
     expect(pauseAudit?.metadata).toMatchObject({ reason: 'Client request', screensWithoutMatchingCmsRecord: [screenB.screenId] });
     await api('post', `${path}/transitions`).send({ to: 'READY' }).expect(409);
+    // Extending the end changed the plan after the uploads were recorded: the proof is stale until it is declared again (G1).
+    const stale = await api('post', `${path}/transitions`).send({ to: 'LIVE', reason: 'Resumed' }).expect(409);
+    expect(stale.body.error.details.missingCmsUpload.sort()).toEqual([screenA.screenId, screenB.screenId].sort());
+    expect((await api('get', path).expect(200)).body.screens.every((row: { cmsUploaded: boolean; cmsUploadStale: boolean }) => !row.cmsUploaded && row.cmsUploadStale)).toBe(true);
+    for (const screen of [screenA, screenB]) {
+      await api('post', `${path}/cms-operations`).send({ screenId: screen.id, type: 'CMS_UPLOADED', performedAt: new Date().toISOString() }).expect(201);
+    }
     expect((await api('post', `${path}/transitions`).send({ to: 'LIVE', reason: 'Resumed' }).expect(200)).body.status).toBe('LIVE');
     const done = (await api('post', `${path}/transitions`).send({ to: 'COMPLETED' }).expect(200)).body;
     expect(done.completedAt).not.toBeNull();
     await api('patch', path).send({ notes: 'late' }).expect(409);
     await api('post', `${path}/transitions`).send({ to: 'LIVE' }).expect(409);
-    // A stop can still be declared after completion.
-    await api('post', `${path}/cms-operations`).send({ screenId: screenB.id, type: 'PLAYBACK_STOPPED', performedAt: new Date().toISOString() }).expect(201);
+    // CMS declarations are closed once the booking is COMPLETED (P2).
+    await api('post', `${path}/cms-operations`).send({ screenId: screenB.id, type: 'PLAYBACK_STOPPED', performedAt: new Date().toISOString() }).expect(409);
+    await api('post', `${path}/cms-operations`).send({ screenId: screenB.id, type: 'NOTE', note: 'late', performedAt: new Date().toISOString() }).expect(409);
 
     const ops = (await api('get', `${path}/cms-operations?screenId=${screenA.id}`).expect(200)).body;
-    expect(ops.items.map((op: { type: string }) => op.type)).toEqual(['PLAYBACK_PAUSED', 'CMS_UPLOADED']);
-    const opId = ops.items[0].id;
+    expect(ops.items.map((op: { type: string }) => op.type)).toEqual(['CMS_UPLOADED', 'PLAYBACK_PAUSED', 'CMS_UPLOADED']);
+    const opId = ops.items[1].id;
     await expect(db.campaignCmsOperation.update({ where: { id: opId }, data: { note: 'edited' } })).rejects.toThrow();
     await expect(db.campaignCmsOperation.delete({ where: { id: opId } })).rejects.toThrow();
     const activity = (await api('get', `${path}/activity?pageSize=100`).expect(200)).body;
@@ -343,6 +373,240 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
       'CAMPAIGN_STATUS_CHANGED', 'CAMPAIGN_CMS_OPERATION_RECORDED']));
     const auto = await db.auditLog.findFirst({ where: { entityId: campaign.id, action: 'CAMPAIGN_STATUS_CHANGED', metadata: { path: ['automatic'], equals: true } } });
     expect(auto).not.toBeNull();
+  });
+
+  it('only counts CMS uploads recorded after the last effective plan change and closes CMS writes outside READY/LIVE/PAUSED (G1, P2)', async () => {
+    const draft = await makeCampaign();
+    const screen = await makeScreen();
+    await api('post', `/campaigns/${draft.id}/screens`).send({ screenIds: [screen.id] }).expect(200);
+    // DRAFT accepts notes only, and a note needs text.
+    await declare(`/campaigns/${draft.id}`, screen.id, 'CMS_UPLOADED').expect(409);
+    await declare(`/campaigns/${draft.id}`, screen.id, 'NOTE').expect(400);
+    await declare(`/campaigns/${draft.id}`, screen.id, 'NOTE', { note: '   ' }).expect(400);
+    await declare(`/campaigns/${draft.id}`, screen.id, 'NOTE', { note: 'Panel access pending' }).expect(201);
+
+    const { path, screen: ready } = await readyCampaign();
+    await declare(path, ready.id, 'NOTE').expect(400);
+    const planned = (await api('get', path).expect(200)).body;
+    expect(planned.planChangedAt).toMatch(/Z$/);
+    expect(planned.screens[0]).toMatchObject({ cmsUploaded: false, cmsUploadStale: false });
+    // performedAt can be backdated; only the server-side recordedAt decides freshness.
+    await declare(path, ready.id, 'CMS_UPLOADED', { performedAt: planned.createdAt }).expect(201);
+    expect((await api('get', path).expect(200)).body.screens[0]).toMatchObject({ cmsUploaded: true, cmsUploadStale: false });
+    expect((await api('get', `${path}/validation`).expect(200)).body.missingCmsUpload).toEqual([]);
+
+    // A no-op does not age the proof; a real plan change does and returns the booking to DRAFT.
+    await api('patch', path).send({ targetPlayouts: '1000' }).expect(200);
+    expect((await api('get', path).expect(200)).body.screens[0].cmsUploaded).toBe(true);
+    const edited = (await api('patch', path).send({ targetPlayouts: '2000' }).expect(200)).body;
+    expect(edited.status).toBe('DRAFT');
+    expect(edited.planChangedAt > planned.planChangedAt).toBe(true);
+    expect(edited.screens[0]).toMatchObject({ cmsUploaded: false, cmsUploadStale: true });
+    await api('post', `${path}/transitions`).send({ to: 'READY' }).expect(200);
+    const refused = await api('post', `${path}/transitions`).send({ to: 'LIVE' }).expect(409);
+    expect(refused.body.error.details.missingCmsUpload).toEqual([ready.screenId]);
+    expect((await api('get', `${path}/validation`).expect(200)).body.missingCmsUpload).toEqual([ready.screenId]);
+    await declare(path, ready.id, 'CMS_UPLOADED', { performedAt: planned.createdAt }).expect(201);
+    expect((await api('post', `${path}/transitions`).send({ to: 'LIVE' }).expect(200)).body.status).toBe('LIVE');
+
+    // Terminal states take no CMS declarations at all.
+    expect((await api('post', `${path}/transitions`).send({ to: 'COMPLETED' }).expect(200)).body.status).toBe('COMPLETED');
+    await declare(path, ready.id, 'PLAYBACK_STOPPED').expect(409);
+    const cancelled = await makeCampaign();
+    await api('post', `/campaigns/${cancelled.id}/screens`).send({ screenIds: [screen.id] }).expect(200);
+    await api('post', `/campaigns/${cancelled.id}/transitions`).send({ to: 'CANCELLED', reason: 'Withdrawn' }).expect(200);
+    await declare(`/campaigns/${cancelled.id}`, screen.id, 'NOTE', { note: 'x' }).expect(409);
+  });
+
+  it('revokes approved creatives with a reason: READY drops to DRAFT, LIVE stays with a warning, revoked ones cannot be linked (G2)', async () => {
+    const first = await readyCampaign();
+    const second = await readyCampaign({ creative: first.creativeId });
+    await declare(second.path, second.screen.id).expect(201);
+    await api('post', `${second.path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    const pending = (await upload(fresh('png'), { displayDurationSeconds: '5' }).expect(201)).body;
+    await api('post', `/creatives/${pending.id}/revoke`).send({ reason: 'Not approved yet' }).expect(409);
+    await api('post', `/creatives/${first.creativeId}/revoke`).send({ reason: '' }).expect(400);
+    await api('post', `/creatives/${first.creativeId}/revoke`).send({}).expect(400);
+    await api('post', `/creatives/${first.creativeId}/revoke`).send({ reason: 'x'.repeat(1001) }).expect(400);
+    const planBefore = (await api('get', first.path).expect(200)).body.planChangedAt;
+
+    const revoked = (await api('post', `/creatives/${first.creativeId}/revoke`).send({ reason: '  Licence expired  ' }).expect(200)).body;
+    expect(revoked).toMatchObject({ status: 'REVOKED', revocationReason: 'Licence expired', revokedBy: { id: users.ADMIN } });
+    expect(revoked.revokedAt).toMatch(/Z$/);
+    await api('post', `/creatives/${first.creativeId}/revoke`).send({ reason: 'again' }).expect(409);
+    await api('post', `/creatives/${first.creativeId}/approve`).expect(409);
+    expect((await api('get', `/creatives?status=REVOKED&advertiserId=${advertiserId}`).expect(200)).body.items.map((item: { id: string }) => item.id))
+      .toContain(first.creativeId);
+
+    const one = (await api('get', first.path).expect(200)).body;
+    expect(one.status).toBe('DRAFT');
+    expect(one.planChangedAt > planBefore).toBe(true);
+    expect(one.screens[0]).toMatchObject({ cmsUploaded: false });
+    expect(one.creatives[0]).toMatchObject({ status: 'REVOKED', revocationReason: 'Licence expired' });
+    const automatic = await db.auditLog.findFirst({ where: { entityId: first.campaign.id, action: 'CAMPAIGN_STATUS_CHANGED' }, orderBy: { timestamp: 'desc' } });
+    expect(automatic?.metadata).toMatchObject({ automatic: true, reason: 'CREATIVE_REVOKED', creativeId: first.creativeId });
+    expect(await db.auditLog.count({ where: { entityId: first.campaign.id, action: 'CAMPAIGN_CREATIVE_REVOKED' } })).toBe(1);
+    expect(await db.auditLog.count({ where: { entityId: first.creativeId, action: 'CREATIVE_REVOKED' } })).toBe(1);
+
+    // LIVE is a declaration and stays LIVE, but the booking now reports the revoked creative and stale proof.
+    const two = (await api('get', second.path).expect(200)).body;
+    expect(two.status).toBe('LIVE');
+    expect(two.screens[0]).toMatchObject({ cmsUploaded: false, cmsUploadStale: true });
+    const validation = (await api('get', `${second.path}/validation`).expect(200)).body;
+    expect(validation.warnings.map((w: { code: string }) => w.code)).toContain('REVOKED_CREATIVE');
+    expect(validation.blockers.map((b: { code: string }) => b.code)).toContain('NO_APPROVED_CREATIVE');
+
+    // Revoked creatives cannot be linked, may leave a LIVE booking (the only exception to the plan lock), and count as duplicates.
+    const other = await makeCampaign();
+    await api('post', `/campaigns/${other.id}/creatives`).send({ creativeId: first.creativeId }).expect(409);
+    await api('post', `${second.path}/screens/remove`).send({ screenIds: [second.screen.id] }).expect(409);
+    const unlinked = (await api('post', `${second.path}/creatives/remove`).send({ creativeId: first.creativeId }).expect(200)).body;
+    expect(unlinked).toMatchObject({ status: 'LIVE', creatives: [] });
+    const duplicate = await upload(first.file, { displayDurationSeconds: '10' }).expect(409);
+    expect(duplicate.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: first.creativeId } });
+
+    // The immutability trigger allows exactly APPROVED -> REVOKED with a reason, and freezes the result.
+    await expect(db.creative.update({ where: { id: first.creativeId }, data: { status: 'APPROVED' } })).rejects.toThrow();
+    await expect(db.creative.update({ where: { id: first.creativeId }, data: { revocationReason: 'edited' } })).rejects.toThrow();
+    await api('post', `/creatives/${pending.id}/approve`).expect(200);
+    await expect(db.creative.update({ where: { id: pending.id }, data: { status: 'REVOKED' } })).rejects.toThrow();
+    await expect(db.creative.update({ where: { id: pending.id }, data: { status: 'REVOKED', revokedAt: new Date(), revokedById: users.ADMIN,
+      revocationReason: 'direct', width: 1 } })).rejects.toThrow();
+  });
+
+  it('accepts uppercase UUIDs everywhere, builds storage keys from database ids and prevents version-chain forks (P3, P12)', async () => {
+    const v1 = (await upload(fresh('png'), { displayDurationSeconds: '5', advertiserId: advertiserId.toUpperCase() }).expect(201)).body;
+    expect(v1.advertiserId).toBe(advertiserId);
+    const v2 = (await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: v1.id.toUpperCase() }).expect(201)).body;
+    expect(v2).toMatchObject({ version: 2, replacesId: v1.id });
+    expect((await db.creative.findUniqueOrThrow({ where: { id: v2.id } })).storageKey)
+      .toMatch(new RegExp(`^creatives/${advertiserId}/[0-9a-f-]{36}$`));
+    const fork = await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: v1.id }).expect(409);
+    expect(fork.body.error.code).toBe('INVALID_STATE_TRANSITION');
+    await api('get', `/creatives/${v1.id.toUpperCase()}`).expect(200);
+    await api('post', `/creatives/${v2.id.toUpperCase()}/reject`).send({ reason: 'Wrong cut' }).expect(200);
+    // Rejecting the child frees the slot for another replacement.
+    const v3 = (await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: v1.id }).expect(201)).body;
+
+    const screen = await makeScreen();
+    const campaign = await makeCampaign({ advertiserId: advertiserId.toUpperCase(), agencyId: agencyId.toUpperCase() });
+    expect(campaign.advertiser.id).toBe(advertiserId);
+    const path = `/campaigns/${campaign.id.toUpperCase()}`;
+    await api('post', `${path}/screens`).send({ screenIds: [screen.id.toUpperCase(), screen.id] }).expect(400);
+    const added = (await api('post', `${path}/screens`).send({ screenIds: [screen.id.toUpperCase()] }).expect(200)).body;
+    expect(added.screens.map((row: { screenId: string }) => row.screenId)).toEqual([screen.id]);
+    expect((await api('post', `${path}/creatives`).send({ creativeId: v3.id.toUpperCase() }).expect(200)).body.creatives).toHaveLength(1);
+    await api('patch', path).send({ advertiserId: otherAdvertiserId.toUpperCase() }).expect(409);
+    await declare(path, screen.id.toUpperCase(), 'NOTE', { note: 'uppercase ok' }).expect(201);
+    await api('get', `${path}/cms-operations?screenId=${screen.id.toUpperCase()}`).expect(200);
+  });
+
+  it('treats unchanged edits as no-ops: no audit, no READY revert, no planChangedAt movement (P9)', async () => {
+    const { path, campaign, screen } = await readyCampaign();
+    await api('patch', path).send({ pricingModel: 'CPM', unitPrice: '125.5', budget: '10000', publisherSharePct: '60', protargetSharePct: '40' }).expect(200);
+    await api('post', `${path}/transitions`).send({ to: 'READY' }).expect(200);
+    const detail = (await api('get', path).expect(200)).body;
+    const audits = await auditCount(campaign.id);
+    const resend = (await api('patch', path).send({ name: detail.name, advertiserId: advertiserId.toUpperCase(), agencyId, internalOwnerId: users.ADMIN,
+      startAt: detail.startAt, endAt: detail.endAt, timezone: detail.timezone, notes: null, primaryGoal: 'PLAYOUTS', targetPlayouts: '1000',
+      targetImpressions: null, pricingModel: 'CPM', currency: 'TRY', unitPrice: '125.50', budget: '10000.0000', contractedAmount: null,
+      overdeliveryTolerancePct: '1', pgBillingBasis: 'CONTRACTED', publisherSharePct: '60.00', protargetSharePct: '40' }).expect(200)).body;
+    expect(resend).toMatchObject({ status: 'READY', planChangedAt: detail.planChangedAt, updatedAt: detail.updatedAt });
+    expect(await auditCount(campaign.id)).toBe(audits);
+    const noops = [
+      await api('post', `${path}/screens`).send({ screenIds: [screen.id] }).expect(200),
+      await api('post', `${path}/screens/remove`).send({ screenIds: [randomUUID()] }).expect(200),
+      await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: 1, startTime: '08:00', endTime: '12:00' }] }).expect(200),
+    ];
+    for (const response of noops) expect(response.body).toMatchObject({ status: 'READY', planChangedAt: detail.planChangedAt });
+    expect(await auditCount(campaign.id)).toBe(audits);
+    // A real change still reverts and audits only what changed.
+    const changed = (await api('patch', path).send({ name: detail.name, budget: '20000' }).expect(200)).body;
+    expect(changed.status).toBe('DRAFT');
+    const update = await db.auditLog.findFirst({ where: { entityId: campaign.id, action: 'CAMPAIGN_UPDATED' }, orderBy: { timestamp: 'desc' } });
+    expect(update?.metadata).toEqual({ fields: ['budget'] });
+    // Unchanged fields never trip the LIVE restriction either.
+    await api('post', `${path}/transitions`).send({ to: 'READY' }).expect(200);
+    await declare(path, screen.id).expect(201);
+    await api('post', `${path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    expect((await api('patch', path).send({ name: detail.name, notes: 'Only a note' }).expect(200)).body).toMatchObject({ status: 'LIVE', notes: 'Only a note' });
+  });
+
+  it('replaces only campaign-wide dayparts and keeps legacy per-screen schedule rows (P4)', async () => {
+    const screen = await makeScreen();
+    const campaign = await makeCampaign();
+    const path = `/campaigns/${campaign.id}`;
+    await db.schedule.create({ data: { campaignId: campaign.id, screenId: screen.id, dayOfWeek: 3, startTime: '10:00', endTime: '11:00' } });
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: 1, startTime: '08:00', endTime: '12:00' }] }).expect(200);
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: 2, startTime: '08:00', endTime: '12:00' }] }).expect(200);
+    await api('post', `${path}/schedule`).send({ slots: [] }).expect(200);
+    expect(await db.schedule.count({ where: { campaignId: campaign.id, screenId: screen.id } })).toBe(1);
+    expect(await db.schedule.count({ where: { campaignId: campaign.id, screenId: null } })).toBe(0);
+  });
+
+  it('blocks going LIVE from PAUSED once the flight has ended and warns while a READY flight has not started (P10)', async () => {
+    const { path, campaign, screen } = await readyCampaign();
+    expect((await api('get', `${path}/validation`).expect(200)).body.warnings.map((w: { code: string }) => w.code)).toContain('FLIGHT_NOT_STARTED');
+    await declare(path, screen.id).expect(201);
+    await api('post', `${path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    await api('post', `${path}/transitions`).send({ to: 'PAUSED', reason: 'Holiday' }).expect(200);
+    await declare(path, screen.id).expect(201);
+    await db.campaign.update({ where: { id: campaign.id }, data: { startAt: new Date(Date.now() - 48 * 3600_000), endAt: new Date(Date.now() - 3600_000) } });
+    const refused = await api('post', `${path}/transitions`).send({ to: 'LIVE', reason: 'Resume' }).expect(409);
+    expect(refused.body.error).toMatchObject({ code: 'CAMPAIGN_NOT_READY' });
+    expect(refused.body.error.details.blockers.map((b: { code: string }) => b.code)).toContain('INVALID_FLIGHT');
+    expect((await api('get', path).expect(200)).body.status).toBe('PAUSED');
+    await api('post', `${path}/transitions`).send({ to: 'COMPLETED' }).expect(200);
+  });
+
+  it('validates dayparts against the flight, not only the abstract week (P1)', async () => {
+    const screen = await makeScreen();
+    const base = new Date(); base.setUTCDate(base.getUTCDate() + 3); base.setUTCHours(7, 0, 0, 0); // 10:00 Istanbul
+    const flight = { startAt: base.toISOString(), endAt: new Date(base.getTime() + 2 * 3600_000).toISOString() }; // 10:00–12:00 local
+    const weekday = new Date(base.getTime() + 3 * 3600_000).getUTCDay() || 7; // ISO weekday of the flight (UTC+3)
+    const campaign = await makeCampaign(flight);
+    const path = `/campaigns/${campaign.id}`;
+    await api('post', `${path}/screens`).send({ screenIds: [screen.id] }).expect(200);
+    const blockers = async () => (await api('get', `${path}/validation`).expect(200)).body.blockers as { code: string; screens: string[] }[];
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: (weekday % 7) + 1, startTime: '10:00', endTime: '12:00' }] }).expect(200);
+    expect((await blockers()).find(item => item.code === 'NO_PLAYBACK_WINDOW')?.screens).toEqual([screen.screenId]);
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: weekday, startTime: '13:00', endTime: '15:00' }] }).expect(200);
+    expect((await blockers()).map(item => item.code)).toContain('NO_PLAYBACK_WINDOW');
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: weekday, startTime: '11:00', endTime: '13:00' }] }).expect(200);
+    expect((await blockers()).map(item => item.code)).not.toContain('NO_PLAYBACK_WINDOW');
+    // The plain weekly figure in the screen row is unaffected by the flight.
+    expect((await api('get', path).expect(200)).body.screens[0].weeklyWindowHours).toBe('2.00');
+  });
+
+  it('keeps already-selected screens visible after they are deleted or deactivated (P17)', async () => {
+    const screen = await makeScreen();
+    const campaign = await makeCampaign();
+    const path = `/campaigns/${campaign.id}`;
+    await api('post', `${path}/screens`).send({ screenIds: [screen.id] }).expect(200);
+    await db.screen.update({ where: { id: screen.id }, data: { deletedAt: new Date(), active: false } });
+    const selected = (await api('get', `${path}/screen-options?selected=true`).expect(200)).body;
+    expect(selected.items).toHaveLength(1);
+    expect(selected.items[0]).toMatchObject({ screenId: screen.id, selected: true, active: false });
+    const options = (await api('get', `${path}/screen-options?search=${screen.screenId}`).expect(200)).body;
+    expect(options.items).toHaveLength(0);
+  });
+
+  it('rejects QuickTime containers and oversized images at upload (P6)', async () => {
+    const mov = join(mediaDir, `${randomUUID()}.mp4`);
+    ffmpeg('-f', 'lavfi', '-i', `color=c=0x${randomBytes(3).toString('hex')}:s=320x180:d=2`, '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-f', 'mov', mov);
+    expect((await upload(mov).expect(201)).body).toMatchObject({ status: 'REJECTED', rejectionReason: 'NOT_MP4_CONTAINER' });
+    const wide = join(mediaDir, `${randomUUID()}.png`);
+    ffmpeg('-f', 'lavfi', '-i', `color=c=0x${randomBytes(3).toString('hex')}:s=8200x16`, '-frames:v', '1', wide);
+    expect((await upload(wide, { displayDurationSeconds: '5' }).expect(201)).body).toMatchObject({ status: 'REJECTED', rejectionReason: 'DIMENSIONS_TOO_LARGE' });
+  });
+
+  it('serves a safe Content-Disposition for awkward filenames (P19)', async () => {
+    const file = join(mediaDir, "it's (a) *özel*.png");
+    ffmpeg('-f', 'lavfi', '-i', `color=c=0x${randomBytes(3).toString('hex')}:s=64x64`, '-frames:v', '1', file);
+    const created = (await upload(file, { displayDurationSeconds: '5' }).expect(201)).body;
+    const header = (await api('get', `/creatives/${created.id}/file`).expect(200)).headers['content-disposition'];
+    expect(header).toContain(`filename*=UTF-8''it%27s%20%28a%29%20%2A%C3%B6zel%2A.png`);
+    expect(header).toContain('filename="it\'s (a) *_zel*.png"');
   });
 
   it('flags inactive screens, unknown hours, timezone differences, too-long creatives and approved multipliers', async () => {
@@ -416,5 +680,19 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     await expect(db.campaign.update({ where: { id: campaign.id }, data: { unitPrice: new Prisma.Decimal('-1') } })).rejects.toThrow();
     await expect(db.schedule.create({ data: { campaignId: campaign.id, dayOfWeek: 9, startTime: '10:00', endTime: '11:00' } })).rejects.toThrow();
     await expect(db.$executeRawUnsafe('TRUNCATE campaign_cms_operations')).rejects.toThrow();
+  });
+
+  it('enforces content uniqueness and version-chain integrity in the database (P12)', async () => {
+    const row = (extra: object = {}) => ({ advertiserId, storageKey: 'db-guard', originalFilename: 'guard.png', mime: 'image/png', sizeBytes: 5n,
+      code: `DB-${randomUUID()}`, checksum: `sha256:${randomBytes(32).toString('hex')}`, status: 'VALIDATING' as const, ...extra });
+    const first = row();
+    await db.creative.create({ data: first });
+    await expect(db.creative.create({ data: row({ checksum: first.checksum }) })).rejects.toThrow();
+    await expect(db.creative.create({ data: row({ checksum: first.checksum, advertiserId: otherAdvertiserId }) })).resolves.toBeDefined();
+    await expect(db.creative.create({ data: row({ checksum: first.checksum, status: 'REJECTED' }) })).resolves.toBeDefined();
+    const parent = await db.creative.create({ data: row() });
+    await db.creative.create({ data: row({ replacesId: parent.id }) });
+    await expect(db.creative.create({ data: row({ replacesId: parent.id }) })).rejects.toThrow();
+    await expect(db.creative.create({ data: row({ replacesId: parent.id, status: 'REJECTED' }) })).resolves.toBeDefined();
   });
 });

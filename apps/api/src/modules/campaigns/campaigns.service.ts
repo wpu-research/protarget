@@ -24,7 +24,7 @@ type Tx = Prisma.TransactionClient;
 const org = { select: { id: true, name: true, type: true } } as const;
 const summarySelect = {
   id: true, code: true, name: true, status: true, startAt: true, endAt: true, timezone: true, primaryGoal: true,
-  targetPlayouts: true, targetImpressions: true, createdAt: true, updatedAt: true, advertiserId: true,
+  targetPlayouts: true, targetImpressions: true, createdAt: true, updatedAt: true, planChangedAt: true, advertiserId: true,
   advertiser: org, agency: org, internalOwner: { select: { id: true, name: true } },
   _count: { select: { screens: true, creatives: true } },
 } satisfies Prisma.CampaignSelect;
@@ -58,6 +58,7 @@ function presentSummary(row: SummaryRow, now = new Date()): CampaignSummaryDto {
     screenCount: row._count.screens, creativeCount: row._count.creatives,
     flightEnded: (row.status === 'LIVE' || row.status === 'PAUSED') && row.endAt <= now,
     createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString(),
+    planChangedAt: row.planChangedAt.toISOString(),
   };
 }
 /** Audit snapshot: scalar booking fields only (relations are audited by their own actions). */
@@ -83,6 +84,32 @@ const PLAN_FIELDS = ['name', 'advertiserId', 'agencyId', 'internalOwnerId', 'sta
   'targetPlayouts', 'targetImpressions', 'maxPlayoutsPerHourPerScreen', 'pricingModel', 'currency', 'unitPrice', 'budget',
   'contractedAmount', 'guaranteedImpressions', 'contractedQuantity', 'overdeliveryTolerancePct', 'pgBillingBasis',
   'publisherSharePct', 'protargetSharePct'] as const;
+
+const DECIMAL_PLACES: Record<string, number> = { unitPrice: 4, budget: 4, contractedAmount: 4, overdeliveryTolerancePct: 2,
+  publisherSharePct: 2, protargetSharePct: 2 };
+const BIGINT_FIELDS = ['targetPlayouts', 'targetImpressions', 'guaranteedImpressions', 'contractedQuantity'];
+/** Stored values in the same normalized form as `incomingValue` (Decimal/BigInt/date strings compared as values). */
+function storedValues(row: DetailRow): Record<string, unknown> {
+  return {
+    name: row.name, advertiserId: row.advertiser.id, agencyId: row.agency?.id ?? null, internalOwnerId: row.internalOwner.id,
+    startAt: row.startAt.getTime(), endAt: row.endAt.getTime(), timezone: row.timezone, notes: row.notes,
+    primaryGoal: row.primaryGoal, targetPlayouts: big(row.targetPlayouts), targetImpressions: big(row.targetImpressions),
+    maxPlayoutsPerHourPerScreen: row.maxPlayoutsPerHourPerScreen, pricingModel: row.pricingModel, currency: row.currency,
+    unitPrice: dec(row.unitPrice, 4), budget: dec(row.budget, 4), contractedAmount: dec(row.contractedAmount, 4),
+    guaranteedImpressions: big(row.guaranteedImpressions), contractedQuantity: big(row.contractedQuantity),
+    overdeliveryTolerancePct: row.overdeliveryTolerancePct.toFixed(2), pgBillingBasis: row.pgBillingBasis,
+    publisherSharePct: dec(row.publisherSharePct, 2), protargetSharePct: dec(row.protargetSharePct, 2),
+  };
+}
+function incomingValue(key: string, value: unknown): unknown {
+  if (key === 'startAt' || key === 'endAt') return new Date(value as string).getTime();
+  if (key === 'notes') return value ? value : null;
+  if (key in DECIMAL_PLACES) return value == null ? null : new Prisma.Decimal(value as string).toFixed(DECIMAL_PLACES[key]);
+  if (BIGINT_FIELDS.includes(key)) return value == null ? null : BigInt(value as string).toString();
+  return value ?? null;
+}
+const scheduleKey = (slots: { dayOfWeek: number; startTime: string; endTime: string }[]) =>
+  slots.map(slot => `${slot.dayOfWeek}|${slot.startTime}|${slot.endTime}`).sort().join(',');
 
 @Injectable()
 export class CampaignsService {
@@ -140,40 +167,53 @@ export class CampaignsService {
       await this.sessions.requireAdmin(tx, actor);
       const row = await this.load(tx, id);
       const status = row.status;
-      const keys = (Object.keys(dto) as (keyof UpdateCampaignDto)[]).filter(key => dto[key] !== undefined);
-      if (BOOKING_LIMITED_EDIT.includes(status as BookingStatus)) {
-        if (keys.some(key => key !== 'notes' && key !== 'endAt')) throw conflict('Only notes and a later end can change while live or paused');
-        if (dto.endAt && new Date(dto.endAt) <= row.endAt) throw conflict('The end can only be extended while live or paused');
-        if (dto.endAt && new Date(dto.endAt) <= new Date()) throw invalid('The extended end must be in the future');
-      } else if (!BOOKING_PLAN_EDITABLE.includes(status as BookingStatus)) {
+      if (!BOOKING_LIMITED_EDIT.includes(status as BookingStatus) && !BOOKING_PLAN_EDITABLE.includes(status as BookingStatus)) {
         throw conflict('This booking is read-only');
       }
-      if (dto.advertiserId && dto.advertiserId !== row.advertiser.id && row._count.creatives > 0) {
+      // Only values that really differ count as edits; unchanged fields (e.g. a wizard resending everything) are ignored.
+      const stored = storedValues(row);
+      const keys = (Object.keys(dto) as (keyof UpdateCampaignDto)[]).filter(key => dto[key] !== undefined
+        && incomingValue(key, dto[key]) !== stored[key]);
+      if (keys.length === 0) return this.detail(tx, id);
+      const changed = new Set<string>(keys);
+      if (BOOKING_LIMITED_EDIT.includes(status as BookingStatus)) {
+        if (keys.some(key => key !== 'notes' && key !== 'endAt')) throw conflict('Only notes and a later end can change while live or paused');
+        if (dto.endAt && changed.has('endAt') && new Date(dto.endAt) <= row.endAt) throw conflict('The end can only be extended while live or paused');
+        if (dto.endAt && changed.has('endAt') && new Date(dto.endAt) <= new Date()) throw invalid('The extended end must be in the future');
+      }
+      if (changed.has('advertiserId') && row._count.creatives > 0) {
         throw conflict('Unlink creatives before changing the advertiser');
       }
-      await this.checkReferences(tx, dto);
+      await this.checkReferences(tx, {
+        advertiserId: changed.has('advertiserId') ? dto.advertiserId : undefined,
+        agencyId: changed.has('agencyId') ? dto.agencyId : undefined,
+        internalOwnerId: changed.has('internalOwnerId') ? dto.internalOwnerId : undefined });
       const startAt = dto.startAt ? new Date(dto.startAt) : row.startAt;
       const endAt = dto.endAt ? new Date(dto.endAt) : row.endAt;
       if (endAt <= startAt) throw invalid('endAt must be later than startAt');
-      const publisher = dto.publisherSharePct !== undefined ? dto.publisherSharePct : dec(row.publisherSharePct, 2);
-      const protarget = dto.protargetSharePct !== undefined ? dto.protargetSharePct : dec(row.protargetSharePct, 2);
-      if (publisher != null && protarget != null && !new Prisma.Decimal(publisher).plus(protarget).equals(100)) {
-        throw invalid('publisherSharePct + protargetSharePct must equal 100');
+      if (changed.has('publisherSharePct') || changed.has('protargetSharePct')) {
+        const publisher = dto.publisherSharePct !== undefined ? dto.publisherSharePct : dec(row.publisherSharePct, 2);
+        const protarget = dto.protargetSharePct !== undefined ? dto.protargetSharePct : dec(row.protargetSharePct, 2);
+        if (publisher != null && protarget != null && !new Prisma.Decimal(publisher).plus(protarget).equals(100)) {
+          throw invalid('publisherSharePct + protargetSharePct must equal 100');
+        }
       }
+      const pick = <K extends keyof UpdateCampaignDto>(key: K) => changed.has(key) ? dto[key] : undefined;
       const decimal = (value: string | null | undefined) => value === undefined ? undefined : value === null ? null : new Prisma.Decimal(value);
       const bigint = (value: string | null | undefined) => value === undefined ? undefined : value === null ? null : BigInt(value);
       const before = snapshot(row);
       const planChanged = keys.some(key => (PLAN_FIELDS as readonly string[]).includes(key));
       await tx.campaign.update({ where: { id }, data: {
-        name: dto.name, advertiserId: dto.advertiserId, agencyId: dto.agencyId, internalOwnerId: dto.internalOwnerId,
-        startAt: dto.startAt ? startAt : undefined, endAt: dto.endAt ? endAt : undefined, timezone: dto.timezone,
-        notes: dto.notes === undefined ? undefined : dto.notes || null,
-        primaryGoal: dto.primaryGoal, targetPlayouts: bigint(dto.targetPlayouts), targetImpressions: bigint(dto.targetImpressions),
-        maxPlayoutsPerHourPerScreen: dto.maxPlayoutsPerHourPerScreen, pricingModel: dto.pricingModel, currency: dto.currency,
-        unitPrice: decimal(dto.unitPrice), budget: decimal(dto.budget), contractedAmount: decimal(dto.contractedAmount),
-        guaranteedImpressions: bigint(dto.guaranteedImpressions), contractedQuantity: bigint(dto.contractedQuantity),
-        overdeliveryTolerancePct: decimal(dto.overdeliveryTolerancePct) ?? undefined, pgBillingBasis: dto.pgBillingBasis,
-        publisherSharePct: decimal(dto.publisherSharePct), protargetSharePct: decimal(dto.protargetSharePct),
+        name: pick('name'), advertiserId: pick('advertiserId'), agencyId: pick('agencyId'), internalOwnerId: pick('internalOwnerId'),
+        startAt: changed.has('startAt') ? startAt : undefined, endAt: changed.has('endAt') ? endAt : undefined, timezone: pick('timezone'),
+        notes: changed.has('notes') ? dto.notes || null : undefined,
+        primaryGoal: pick('primaryGoal'), targetPlayouts: bigint(pick('targetPlayouts')), targetImpressions: bigint(pick('targetImpressions')),
+        maxPlayoutsPerHourPerScreen: pick('maxPlayoutsPerHourPerScreen'), pricingModel: pick('pricingModel'), currency: pick('currency'),
+        unitPrice: decimal(pick('unitPrice')), budget: decimal(pick('budget')), contractedAmount: decimal(pick('contractedAmount')),
+        guaranteedImpressions: bigint(pick('guaranteedImpressions')), contractedQuantity: bigint(pick('contractedQuantity')),
+        overdeliveryTolerancePct: decimal(pick('overdeliveryTolerancePct')) ?? undefined, pgBillingBasis: pick('pgBillingBasis'),
+        publisherSharePct: decimal(pick('publisherSharePct')), protargetSharePct: decimal(pick('protargetSharePct')),
+        ...(planChanged ? { planChangedAt: new Date() } : {}),
       } });
       await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_UPDATED', entityType: 'campaign', entityId: id,
         before, after: await this.snapshotOf(tx, id), metadata: { fields: keys } });
@@ -198,9 +238,9 @@ export class CampaignsService {
       await this.sessions.requireAdmin(tx, actor);
       const campaign = await this.load(tx, id);
       const selectedIds = (await tx.campaignScreen.findMany({ where: { campaignId: id }, select: { screenId: true } })).map(row => row.screenId);
+      // Already-selected screens stay visible even when deactivated or deleted since (so they can be reviewed/removed).
       const where: Prisma.ScreenWhereInput = {
-        deletedAt: null,
-        ...(query.selected === true ? { id: { in: selectedIds } } : { active: true, venue: { active: true } }),
+        ...(query.selected === true ? { id: { in: selectedIds } } : { deletedAt: null, active: true, venue: { active: true } }),
         ...(query.selected === false ? { id: { notIn: selectedIds } } : {}),
         ...(query.venueId ? { venueId: query.venueId } : {}),
         ...(query.city ? { venue: { ...(query.selected === true ? {} : { active: true }), city: { equals: query.city, mode: 'insensitive' } } } : {}),
@@ -228,8 +268,10 @@ export class CampaignsService {
           { unavailable: dto.screenIds.filter(screenId => !found.has(screenId)) });
       }
       const result = await tx.campaignScreen.createMany({ data: screens.map(screen => ({ campaignId: id, screenId: screen.id })), skipDuplicates: true });
+      if (result.count === 0) return false;
       await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_SCREENS_ADDED', entityType: 'campaign', entityId: row.id,
         metadata: { screens: screens.map(screen => screen.screenId), added: result.count } });
+      return true;
     });
   }
 
@@ -237,9 +279,11 @@ export class CampaignsService {
     return this.planEdit(actor, id, async (tx, row) => {
       const linked = await tx.campaignScreen.findMany({ where: { campaignId: id, screenId: { in: dto.screenIds } },
         select: { screen: { select: { screenId: true } } } });
-      await tx.campaignScreen.deleteMany({ where: { campaignId: id, screenId: { in: dto.screenIds } } });
+      const removed = await tx.campaignScreen.deleteMany({ where: { campaignId: id, screenId: { in: dto.screenIds } } });
+      if (removed.count === 0) return false;
       await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_SCREENS_REMOVED', entityType: 'campaign', entityId: row.id,
         metadata: { screens: linked.map(link => link.screen.screenId) } });
+      return true;
     });
   }
 
@@ -249,11 +293,13 @@ export class CampaignsService {
       if (!creative) throw missing('Creative');
       if (creative.advertiserId !== row.advertiser.id) throw invalid('The creative belongs to another advertiser');
       if (creative.status === 'REJECTED') throw conflict('A rejected creative cannot be linked');
+      if (creative.status === 'REVOKED') throw conflict('A revoked creative cannot be linked');
       const existing = await tx.campaignCreative.findUnique({ where: { campaignId_creativeId: { campaignId: id, creativeId: dto.creativeId } } });
       if (existing) throw conflict('The creative is already linked');
       await tx.campaignCreative.create({ data: { campaignId: id, creativeId: dto.creativeId } });
       await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_CREATIVE_LINKED', entityType: 'campaign', entityId: id,
         metadata: { creativeId: dto.creativeId, code: creative.code } });
+      return true;
     });
   }
 
@@ -263,6 +309,11 @@ export class CampaignsService {
       if (removed.count === 0) throw missing('Linked creative');
       await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_CREATIVE_UNLINKED', entityType: 'campaign', entityId: id,
         metadata: { creativeId: dto.creativeId } });
+      return true;
+    }, async tx => {
+      // The only exception to the plan lock: a revoked creative can be taken out of a LIVE/PAUSED booking.
+      const creative = await tx.creative.findUnique({ where: { id: dto.creativeId }, select: { status: true } });
+      return creative?.status === 'REVOKED';
     });
   }
 
@@ -272,10 +323,13 @@ export class CampaignsService {
     if (overlap >= 0) throw invalid(`Daypart ${overlap + 1} overlaps another daypart`);
     return this.planEdit(actor, id, async (tx, row) => {
       const before = row.schedules;
-      await tx.schedule.deleteMany({ where: { campaignId: id } });
+      if (scheduleKey(before) === scheduleKey(dto.slots)) return false;
+      // Only campaign-wide dayparts are replaced; legacy per-screen rows are left untouched.
+      await tx.schedule.deleteMany({ where: { campaignId: id, screenId: null } });
       if (dto.slots.length) await tx.schedule.createMany({ data: dto.slots.map(slot => ({ campaignId: id, ...slot })) });
       await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_SCHEDULE_REPLACED', entityType: 'campaign', entityId: id,
         before, after: dto.slots });
+      return true;
     });
   }
 
@@ -298,6 +352,10 @@ export class CampaignsService {
       let metadata: Record<string, unknown> = { reason: dto.reason ?? null };
       if (dto.to === 'READY' || dto.to === 'LIVE') {
         const check = await this.validate(tx, row);
+        if (dto.to === 'LIVE' && row.endAt <= new Date() && !check.blockers.some(item => item.code === 'INVALID_FLIGHT')) {
+          // Going live (also resuming from PAUSED) needs a flight that has not already ended.
+          check.blockers.push({ code: 'INVALID_FLIGHT', screens: [] });
+        }
         if (check.blockers.length) {
           throw new ApiError(409, 'CAMPAIGN_NOT_READY', 'The booking has blockers', { blockers: check.blockers });
         }
@@ -337,6 +395,11 @@ export class CampaignsService {
     return inventoryTransaction(this.db, async tx => {
       await this.sessions.requireAdmin(tx, actor);
       const row = await this.load(tx, id);
+      if (dto.type === 'NOTE' && !dto.note) throw invalid('A note requires non-empty text');
+      const cmsStatuses: string[] = ['READY', 'LIVE', 'PAUSED'];
+      if (!cmsStatuses.includes(row.status) && !(dto.type === 'NOTE' && row.status === 'DRAFT')) {
+        throw conflict('CMS operations can only be recorded for a ready, live or paused booking (notes also in draft)');
+      }
       const performedAt = new Date(dto.performedAt);
       const now = new Date();
       if (performedAt.getTime() > now.getTime() + 60_000) throw invalid('performedAt cannot be in the future');
@@ -344,7 +407,7 @@ export class CampaignsService {
       const link = await tx.campaignScreen.findUnique({ where: { campaignId_screenId: { campaignId: id, screenId: dto.screenId } } });
       if (!link) throw invalid('The screen is not part of this booking');
       const created = await tx.campaignCmsOperation.create({ data: {
-        campaignId: id, screenId: dto.screenId, type: dto.type, performedAt, actorId: actor.user.id,
+        campaignId: id, screenId: dto.screenId, type: dto.type, performedAt, recordedAt: now, actorId: actor.user.id,
         cmsReference: dto.cmsReference ?? null, note: dto.note ?? null,
       }, select: cmsSelect });
       const after = presentCms(created);
@@ -381,16 +444,22 @@ export class CampaignsService {
     return snapshot(await this.load(tx, id));
   }
 
-  /** Plan sub-resources change only in DRAFT/READY; a READY booking returns to DRAFT. The campaign row
-   * is touched so concurrent plan edits and transitions serialize on it. */
-  private planEdit(actor: Principal, id: string, work: (tx: Tx, row: DetailRow) => Promise<void>): Promise<CampaignDetailDto> {
+  /** Plan sub-resources change only in DRAFT/READY (`allowWhenLocked` is a narrow per-action exception for LIVE/PAUSED).
+   * `work` returns whether anything really changed: a no-op writes nothing (no audit, no planChangedAt, no READY→DRAFT).
+   * An effective change stamps planChangedAt and returns a READY booking to DRAFT. */
+  private planEdit(actor: Principal, id: string, work: (tx: Tx, row: DetailRow) => Promise<boolean>,
+    allowWhenLocked?: (tx: Tx, row: DetailRow) => Promise<boolean>): Promise<CampaignDetailDto> {
     return inventoryTransaction(this.db, async tx => {
       await this.sessions.requireAdmin(tx, actor);
       const row = await this.load(tx, id);
-      if (!BOOKING_PLAN_EDITABLE.includes(row.status as BookingStatus)) throw conflict('The plan is locked in this status');
-      await tx.campaign.update({ where: { id }, data: { updatedAt: new Date() } });
-      await work(tx, row);
-      await this.revertReady(tx, actor, id, row.status);
+      if (!BOOKING_PLAN_EDITABLE.includes(row.status as BookingStatus)) {
+        const exception = BOOKING_LIMITED_EDIT.includes(row.status as BookingStatus) && allowWhenLocked && await allowWhenLocked(tx, row);
+        if (!exception) throw conflict('The plan is locked in this status');
+      }
+      if (await work(tx, row)) {
+        await tx.campaign.update({ where: { id }, data: { planChangedAt: new Date() } });
+        await this.revertReady(tx, actor, id, row.status);
+      }
       return this.detail(tx, id);
     });
   }
@@ -432,15 +501,18 @@ export class CampaignsService {
   private async screenRows(tx: Tx, campaign: DetailRow, screens: ScreenRow[]): Promise<CampaignScreenDto[]> {
     if (!screens.length) return [];
     const ids = screens.map(screen => screen.id);
-    const [multipliers, lastOps, uploads] = await Promise.all([
+    const [multipliers, lastOps, uploads, anyUploads] = await Promise.all([
       this.currentMultipliers(tx, ids, campaign.startAt),
       tx.campaignCmsOperation.findMany({ where: { campaignId: campaign.id, screenId: { in: ids } }, distinct: ['screenId'],
         orderBy: [{ screenId: 'asc' }, { performedAt: 'desc' }, { recordedAt: 'desc' }], select: { screenId: true, type: true, performedAt: true } }),
+      tx.campaignCmsOperation.findMany({ where: { campaignId: campaign.id, screenId: { in: ids }, type: 'CMS_UPLOADED',
+        recordedAt: { gte: campaign.planChangedAt } }, distinct: ['screenId'], select: { screenId: true } }),
       tx.campaignCmsOperation.findMany({ where: { campaignId: campaign.id, screenId: { in: ids }, type: 'CMS_UPLOADED' },
         distinct: ['screenId'], select: { screenId: true } }),
     ]);
     const last = new Map(lastOps.map(op => [op.screenId, { type: op.type, performedAt: op.performedAt.toISOString() }]));
     const uploaded = new Set(uploads.map(op => op.screenId));
+    const everUploaded = new Set(anyUploads.map(op => op.screenId));
     return screens.map(screen => {
       const hours = campaign.schedules.length ? weeklyWindowHours(campaign.schedules, campaign.timezone, screen) : null;
       return {
@@ -452,6 +524,7 @@ export class CampaignsService {
         currentMultiplier: multipliers.get(screen.id) ?? null,
         weeklyWindowHours: hours === null ? null : hours.toFixed(2),
         lastCmsOperation: last.get(screen.id) ?? null, cmsUploaded: uploaded.has(screen.id),
+        cmsUploadStale: everUploaded.has(screen.id) && !uploaded.has(screen.id),
       };
     });
   }
@@ -472,7 +545,9 @@ export class CampaignsService {
     const ids = screens.map(screen => screen.id);
     const [multipliers, uploads] = await Promise.all([
       this.currentMultipliers(tx, ids, row.startAt),
-      tx.campaignCmsOperation.findMany({ where: { campaignId: row.id, type: 'CMS_UPLOADED' }, distinct: ['screenId'], select: { screenId: true } }),
+      // Only an upload recorded (server time) after the last effective plan change counts as proof.
+      tx.campaignCmsOperation.findMany({ where: { campaignId: row.id, type: 'CMS_UPLOADED', recordedAt: { gte: row.planChangedAt } },
+        distinct: ['screenId'], select: { screenId: true } }),
     ]);
     const uploaded = new Set(uploads.map(op => op.screenId));
     return validateBooking({

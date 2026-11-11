@@ -61,6 +61,7 @@ export const CreativeStatus = {
   VALIDATING: 'VALIDATING',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
+  REVOKED: 'REVOKED',
 } as const;
 export type CreativeStatus = (typeof CreativeStatus)[keyof typeof CreativeStatus];
 

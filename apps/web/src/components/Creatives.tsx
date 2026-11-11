@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { CREATIVE_MAX_BYTES, CREATIVE_MIME_TYPES, CreativeStatus, type CreativeSummary, type OrgRef, type PageResult } from '@protarget/shared';
 import type { MessageKey } from '@protarget/i18n';
 import { api } from '@/lib/client';
-import { uploadCreative } from '@/lib/upload';
+import { uploadCreative, UPLOAD_ABORTED } from '@/lib/upload';
+import { RequestError } from '@/lib/client';
 import { useText } from './Locale';
 import {
-  bookingError, CreativeFacts, CreativeStatusBadge, Feedback, ListPager, RejectionReason, Stamp,
+  bookingError, ConfirmDialog, CreativeFacts, CreativeStatusBadge, Feedback, ListPager, RejectionReason, Stamp,
 } from './campaign-ui';
 
 type Filters = { advertiserId?: string; status?: string; pageSize?: string };
@@ -34,6 +35,9 @@ export function CreativeUploader({ advertisers, advertiserId, replaces, onDone, 
   const [result, setResult] = useState<CreativeSummary | null>(null);
   const [formKey, setFormKey] = useState(0);
   const busy = progress !== null;
+  const controller = useRef<AbortController | null>(null);
+  // Leaving the page aborts a running transfer instead of letting it finish unseen.
+  useEffect(() => () => controller.current?.abort(), []);
   const mime = file ? mimeOf(file) : '';
   const isImage = mime === 'image/png' || mime === 'image/jpeg';
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -52,11 +56,16 @@ export function CreativeUploader({ advertisers, advertiserId, replaces, onDone, 
     if (replaces) form.set('replacesId', replaces.id);
     form.set('file', file);
     setProgress(0);
+    const abort = new AbortController();
+    controller.current = abort;
     try {
-      const created = await uploadCreative(form, setProgress);
+      const created = await uploadCreative(form, setProgress, abort.signal);
       setResult(created); setFile(null); setDuration(''); setFormKey(key => key + 1);
       onDone(created);
-    } catch (failure) { setError(bookingError(failure)); } finally { setProgress(null); }
+    } catch (failure) {
+      if (abort.signal.aborted || (failure instanceof RequestError && failure.code === UPLOAD_ABORTED)) return;
+      setError(bookingError(failure));
+    } finally { if (!abort.signal.aborted) setProgress(null); }
   }
   return <form key={formKey} className="form-grid two-columns creative-upload" onSubmit={submit} aria-label={text(replaces ? 'creative.newVersion' : 'creative.upload')}>
     <label>{text('creative.advertiser')}<select name="advertiserId" value={selected} disabled={busy || !!fixed} required onChange={event => setSelected(event.target.value)}>
@@ -91,18 +100,37 @@ export function CreativePreview({ creative }: { creative: CreativeSummary }) {
   return <p className="hint">{text('creative.noPreview')}</p>;
 }
 
-/** Approve / reject panel for one creative (VALIDATING only). */
+/** Approve / reject panel for a VALIDATING creative; revoke (with a reason dialog) for an APPROVED one. */
 export function ReviewActions({ creative, onChange }: { creative: CreativeSummary; onChange: (creative: CreativeSummary) => void }) {
   const text = useText();
   const [busy, setBusy] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [revoking, setRevoking] = useState(false);
   const [reason, setReason] = useState('');
   const [error, setError] = useState<MessageKey | ''>('');
   async function run(path: string, body?: unknown) {
     if (busy) return;
     setBusy(true); setError('');
-    try { onChange(await api<CreativeSummary>(`/creatives/${creative.id}/${path}`, { method: 'POST', body })); setRejecting(false); setReason(''); }
+    try { onChange(await api<CreativeSummary>(`/creatives/${creative.id}/${path}`, { method: 'POST', body })); setRejecting(false); setRevoking(false); setReason(''); }
     catch (failure) { setError(bookingError(failure)); } finally { setBusy(false); }
+  }
+  function revoke() {
+    const value = reason.trim();
+    if (!value || value.length > 1000) { setError('creative.error.revokeReason'); return; }
+    void run('revoke', { reason: value });
+  }
+  if (creative.status === CreativeStatus.APPROVED) {
+    return <div className="stack-small">
+      <div className="inventory-actions"><button type="button" className="button quiet" disabled={busy}
+        aria-label={`${text('creative.revoke')} ${creative.code}`} onClick={() => { setError(''); setReason(''); setRevoking(true); }}>{text('creative.revoke')}</button></div>
+      {!revoking && <Feedback error={error} />}
+      {revoking && <ConfirmDialog title="creative.revokeTitle" confirmLabel="creative.revokeConfirm" busy={busy} error={error}
+        onConfirm={revoke} onCancel={() => { setRevoking(false); setError(''); }}>
+        <p className="hint">{text('creative.revokeHint')}</p>
+        <div className="form-grid"><label>{text('creative.revokeReason')}<textarea name="reason" rows={3} maxLength={1000} autoFocus value={reason}
+          onChange={event => setReason(event.target.value)} /></label></div>
+      </ConfirmDialog>}
+    </div>;
   }
   if (creative.status !== CreativeStatus.VALIDATING) return null;
   return <div className="stack-small">

@@ -72,6 +72,7 @@ enum CreativeStatus {
   VALIDATING
   APPROVED
   REJECTED
+  REVOKED
 }
 
 enum CampaignStatus {
@@ -220,6 +221,7 @@ model User {
   ownedCampaigns      Campaign[]           @relation("CampaignOwner")
   uploadedCreatives   Creative[]           @relation("CreativeUploader")
   approvedCreatives   Creative[]           @relation("CreativeApprover")
+  revokedCreatives    Creative[]           @relation("CreativeRevoker")
   cmsOperations       CampaignCmsOperation[]
   auditLogs           AuditLog[]
   campaignPermissions CampaignPermission[]
@@ -485,12 +487,16 @@ model Creative {
   uploadedById     String?        @db.Uuid
   approvedById     String?        @db.Uuid
   approvedAt       DateTime?      @db.Timestamptz
+  revokedAt        DateTime?      @db.Timestamptz
+  revokedById      String?        @db.Uuid
+  revocationReason String?
   createdAt        DateTime       @default(now()) @db.Timestamptz
   updatedAt        DateTime       @updatedAt @db.Timestamptz
 
   advertiser        Organization       @relation(fields: [advertiserId], references: [id])
   uploadedBy        User?              @relation("CreativeUploader", fields: [uploadedById], references: [id])
   approvedBy        User?              @relation("CreativeApprover", fields: [approvedById], references: [id])
+  revokedBy         User?              @relation("CreativeRevoker", fields: [revokedById], references: [id])
   replaces          Creative?          @relation("CreativeVersions", fields: [replacesId], references: [id])
   replacedBy        Creative[]         @relation("CreativeVersions")
   campaignCreatives CampaignCreative[]
@@ -539,6 +545,8 @@ model Campaign {
   deletedAt                   DateTime?         @db.Timestamptz
   createdAt                   DateTime          @default(now()) @db.Timestamptz
   updatedAt                   DateTime          @updatedAt @db.Timestamptz
+  /// Planı fiilen değiştiren son işlemin sunucu zamanı; CMS_UPLOADED kanıtı bundan sonra yazılmış olmalı
+  planChangedAt               DateTime          @default(now()) @db.Timestamptz
 
   advertiser     Organization         @relation("CampaignAdvertiser", fields: [advertiserId], references: [id])
   agency         Organization?        @relation("CampaignAgency", fields: [agencyId], references: [id])

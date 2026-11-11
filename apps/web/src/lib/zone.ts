@@ -33,5 +33,14 @@ export function localInputToUtc(local: string, zone: string): string | null {
   if (wallMs(second, zone) !== guess) return null;
   return new Date(second).toISOString();
 }
-/** Current minute rounded up (never earlier than a record created seconds ago); stays within the API's 60 s future tolerance. */
-export function nowLocalInput(zone: string) { return utcToLocalInput(new Date(Math.ceil(Date.now() / 60000) * 60000).toISOString(), zone); }
+/** Current minute, rounded DOWN so the default never lies in the future; the optional floor keeps it from preceding `notBefore`. */
+export function nowLocalInput(zone: string, notBefore?: string) {
+  let ms = Math.floor(Date.now() / 60000) * 60000;
+  if (notBefore) {
+    const earliest = Math.ceil(new Date(notBefore).getTime() / 60000) * 60000;
+    if (earliest > ms) ms = earliest;
+  }
+  return utcToLocalInput(new Date(ms).toISOString(), zone);
+}
+/** Instant truncated to its minute; the UI only edits minutes, so equality is judged at this precision. */
+export function minuteOf(iso: string) { return Math.floor(new Date(iso).getTime() / 60000); }

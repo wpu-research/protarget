@@ -48,6 +48,7 @@ export const VALIDATION_BLOCKERS = [
 export const VALIDATION_WARNINGS = [
   'OPERATING_HOURS_UNKNOWN', 'TIMEZONE_MISMATCH', 'SLOT_LENGTH_UNKNOWN', 'RESOLUTION_MISMATCH',
   'NO_COMMERCIAL_TERMS', 'UNAPPROVED_CREATIVES', 'FLIGHT_ENDED',
+  'FLIGHT_NOT_STARTED', 'CREATIVE_DURATION_UNKNOWN', 'REVOKED_CREATIVE',
 ] as const;
 export type ValidationBlocker = (typeof VALIDATION_BLOCKERS)[number];
 export type ValidationWarning = (typeof VALIDATION_WARNINGS)[number];
@@ -92,6 +93,8 @@ export interface CampaignSummary {
   /** Bitiş geçmiş ama kampanya hâlâ LIVE/PAUSED: otomatik tamamlama yok. */
   flightEnded: boolean;
   createdAt: string; updatedAt: string;
+  /** Planı fiilen değiştiren son işlemin sunucu zamanı (ISO UTC); CMS kanıtı bundan sonra yazılmış olmalı. */
+  planChangedAt: string;
 }
 export interface CampaignScreenRow {
   screenId: string; code: string; name: string; venueName: string; city: string;
@@ -105,7 +108,10 @@ export interface CampaignScreenRow {
   weeklyWindowHours: string | null;
   /** Bu ekran için son beyan edilen CMS işlemi. */
   lastCmsOperation: { type: CmsOperationType; performedAt: string } | null;
+  /** planChangedAt'ten sonra yazılmış CMS_UPLOADED kaydı var. */
   cmsUploaded: boolean;
+  /** CMS_UPLOADED kaydı var ama hiçbiri planChangedAt'ten sonra değil. */
+  cmsUploadStale: boolean;
 }
 export interface ScheduleSlot { dayOfWeek: number; startTime: string; endTime: string }
 export interface CreativeSummary {
@@ -116,6 +122,7 @@ export interface CreativeSummary {
   sizeBytes: string | null; checksum: string | null; videoCodec: string | null;
   status: CreativeStatus; rejectionReason: string | null; version: number; replacesId: string | null;
   uploadedBy: UserRef | null; approvedBy: UserRef | null; approvedAt: string | null;
+  revokedAt: string | null; revokedBy: UserRef | null; revocationReason: string | null;
   createdAt: string;
 }
 export interface CampaignDetail extends CampaignSummary {

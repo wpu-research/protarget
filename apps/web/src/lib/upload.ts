@@ -2,16 +2,35 @@
 import type { CreativeSummary } from '@protarget/shared';
 import { renewSession, RequestError } from './client';
 
-/** Multipart upload with progress. XMLHttpRequest is used because fetch exposes no upload progress. */
-export function uploadCreative(form: FormData, onProgress: (percent: number) => void): Promise<CreativeSummary> {
+/** Files above this size renew the session first: a 401 after sending hundreds of MB would waste the whole transfer. */
+const RENEW_BEFORE_BYTES = 1024 * 1024;
+export const UPLOAD_ABORTED = 'UPLOAD_ABORTED';
+
+function isCreative(value: unknown): value is CreativeSummary {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return typeof item.id === 'string' && typeof item.code === 'string' && typeof item.status === 'string';
+}
+
+/**
+ * Multipart upload with progress. XMLHttpRequest is used because fetch exposes no upload progress.
+ * `signal` aborts the transfer (component unmount); an aborted upload rejects with code UPLOAD_ABORTED.
+ */
+export function uploadCreative(form: FormData, onProgress: (percent: number) => void, signal?: AbortSignal): Promise<CreativeSummary> {
   const send = () => new Promise<{ status: number; body: unknown }>((resolve, reject) => {
+    if (signal?.aborted) { reject(new RequestError(UPLOAD_ABORTED, 0)); return; }
     const request = new XMLHttpRequest();
+    const abort = () => request.abort();
+    signal?.addEventListener('abort', abort, { once: true });
+    const done = () => signal?.removeEventListener('abort', abort);
     request.open('POST', '/api/v1/creatives');
     request.responseType = 'text';
     request.upload.onprogress = event => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); };
-    request.onerror = () => reject(new RequestError('SERVICE_UNAVAILABLE', 0));
-    request.ontimeout = () => reject(new RequestError('SERVICE_UNAVAILABLE', 0));
+    request.onerror = () => { done(); reject(new RequestError('SERVICE_UNAVAILABLE', 0)); };
+    request.ontimeout = () => { done(); reject(new RequestError('SERVICE_UNAVAILABLE', 0)); };
+    request.onabort = () => { done(); reject(new RequestError(UPLOAD_ABORTED, 0)); };
     request.onload = () => {
+      done();
       let body: unknown = {};
       try { body = JSON.parse(request.responseText); } catch { /* non-JSON error body */ }
       resolve({ status: request.status, body });
@@ -20,16 +39,27 @@ export function uploadCreative(form: FormData, onProgress: (percent: number) => 
   });
   return (async () => {
     onProgress(0);
+    const file = form.get('file');
+    if (file instanceof File && file.size > RENEW_BEFORE_BYTES) {
+      try { await renewSession(); }
+      catch (failure) {
+        if (failure instanceof RequestError && failure.code === 'UNAUTHENTICATED') { window.location.assign('/login'); throw failure; }
+        throw new RequestError('SERVICE_UNAVAILABLE', 0);
+      }
+    }
     let result = await send();
     if (result.status === 401) {
-      try { await renewSession(); onProgress(0); result = await send(); }
+      try { await renewSession(); }
       catch { window.location.assign('/login'); throw new RequestError('UNAUTHENTICATED', 401); }
+      onProgress(0);
+      result = await send();
     }
     if (result.status < 200 || result.status >= 300) {
-      const error = (result.body as { error?: { code?: string; details?: Record<string, unknown> } }).error;
-      throw new RequestError(error?.code ?? (result.status === 413 ? 'PAYLOAD_TOO_LARGE' : 'SERVICE_UNAVAILABLE'), result.status, error?.details ?? {});
+      const error = (result.body as { error?: { code?: string; message?: string; details?: Record<string, unknown> } } | null)?.error;
+      throw new RequestError(error?.code ?? (result.status === 413 ? 'PAYLOAD_TOO_LARGE' : 'SERVICE_UNAVAILABLE'), result.status, error?.details ?? {}, error?.message ?? '');
     }
+    if (!isCreative(result.body)) throw new RequestError('SERVICE_UNAVAILABLE', result.status);
     onProgress(100);
-    return result.body as CreativeSummary;
+    return result.body;
   })();
 }

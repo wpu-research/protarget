@@ -3,6 +3,7 @@ import type { ErrorEnvelope } from '@protarget/shared';
 import { ApiError } from './api-error';
 import { Prisma } from '@prisma/client';
 import { redact } from './redact';
+import { isCheckViolation } from './inventory-validation';
 
 const STATUS_CODES: Record<number, string> = {
   400: 'VALIDATION_FAILED',
@@ -54,6 +55,9 @@ export class ErrorEnvelopeFilter implements ExceptionFilter {
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError && exception.code === 'P2002') {
       status = 409;
       body = { error: { code: 'INVALID_STATE_TRANSITION', message: 'Resource already exists', details: {} } };
+    } else if (isCheckViolation(exception)) {
+      status = 409;
+      body = { error: { code: 'INVALID_STATE_TRANSITION', message: 'The change violates a booking rule', details: {} } };
     } else {
       // Never serialize arbitrary errors: SMTP/Prisma messages may contain credentials or tokens.
       const requestId = host.switchToHttp().getRequest().requestId;

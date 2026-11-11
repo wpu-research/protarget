@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -8,11 +8,11 @@ import {
   type CreativeSummary, type OrgRef, type PageResult, type ScheduleSlot,
 } from '@protarget/shared';
 import type { MessageKey } from '@protarget/i18n';
-import { api } from '@/lib/client';
-import { localInputToUtc, utcToLocalInput, validZone } from '@/lib/zone';
+import { api, RequestError } from '@/lib/client';
+import { localInputToUtc, minuteOf, utcToLocalInput, validZone } from '@/lib/zone';
 import { useText } from './Locale';
 import {
-  bookingError, ButtonPager, BookingStatusBadge, CreativeFacts, CreativeStatusBadge, Feedback, ScreenCells, ScreenHeadCells,
+  bookingError, ButtonPager, BookingStatusBadge, ConfirmDialog, CreativeFacts, CreativeStatusBadge, Feedback, isOvernight, ScreenCells, ScreenHeadCells,
 } from './campaign-ui';
 import { ValidationPanel, campaignBase } from './Campaigns';
 import { CreativeUploader, ReviewActions } from './Creatives';
@@ -27,9 +27,9 @@ const percent = /^(?:100(?:\.0{1,2})?|[1-9]?\d(?:\.\d{1,2})?)$/;
 const hhmm = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
 const field = (form: FormData, name: string) => String(form.get(name) ?? '').trim();
 
-interface Props { initial?: CampaignDetail; advertisers: Option[]; agencies: Option[]; owners: Option[]; venues: Venue[] }
+interface Props { initial?: CampaignDetail; advertisers: Option[]; agencies: Option[]; owners: Option[]; venues: Venue[]; truncated?: boolean }
 
-export function CampaignWizard({ initial, advertisers, agencies, owners, venues }: Props) {
+export function CampaignWizard({ initial, advertisers, agencies, owners, venues, truncated = false }: Props) {
   const text = useText();
   const [campaign, setCampaign] = useState<CampaignDetail | undefined>(initial);
   const [step, setStep] = useState(0);
@@ -40,6 +40,7 @@ export function CampaignWizard({ initial, advertisers, agencies, owners, venues 
       <div className="section-heading"><h2>{campaign ? `${campaign.code} · ${campaign.name}` : text('booking.wizardTitle')}</h2>
         {campaign && <span><BookingStatusBadge status={campaign.status} /></span>}</div>
       <p className="hint">{text('booking.wizardHint')}</p>
+      {truncated && <p className="notice" role="note">{text('booking.listTruncated')}</p>}
       {campaign?.status === 'READY' && <p className="notice" role="note">{text('booking.readyEditWarning')}</p>}
       <ol className="stepper" aria-label={text('booking.steps')}>{STEPS.map((name, index) => <li key={name}>
         <button type="button" className="step" aria-current={index === step ? 'step' : undefined} disabled={!campaign && index > 0}
@@ -72,6 +73,16 @@ function BasicStep({ campaign, advertisers, agencies, owners, onSaved }: {
   const [error, setError] = useState<MessageKey | ''>('');
   const startUtc = validZone(zone) ? localInputToUtc(start, zone) : null;
   const endUtc = validZone(zone) ? localInputToUtc(end, zone) : null;
+  // The inputs only carry minutes. Values are compared with what was rendered, never with the stored seconds.
+  const initialStart = campaign ? utcToLocalInput(campaign.startAt, campaign.timezone) : '';
+  const initialEnd = campaign ? utcToLocalInput(campaign.endAt, campaign.timezone) : '';
+  // Pickers always keep the current (possibly inactive) record so editing never drops it silently.
+  const choices = (list: Option[], current?: Option | null) => {
+    const rows = list.map(item => ({ ...item, inactive: false }));
+    if (current && !list.some(item => item.id === current.id)) rows.unshift({ id: current.id, name: current.name, inactive: true });
+    return rows;
+  };
+  const label = (item: { name: string; inactive: boolean }) => item.inactive ? `${item.name} (${text('common.inactive')})` : item.name;
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -96,8 +107,9 @@ function BasicStep({ campaign, advertisers, agencies, owners, onSaved }: {
       if (body.internalOwnerId !== campaign.internalOwner.id) patch.internalOwnerId = body.internalOwnerId;
       if (body.timezone !== campaign.timezone) patch.timezone = body.timezone;
       if (body.notes !== campaign.notes) patch.notes = body.notes;
-      if (new Date(startUtc).getTime() !== new Date(campaign.startAt).getTime()) patch.startAt = startUtc;
-      if (new Date(endUtc).getTime() !== new Date(campaign.endAt).getTime()) patch.endAt = endUtc;
+      const zoneChanged = body.timezone !== campaign.timezone;
+      if ((start !== initialStart || zoneChanged) && minuteOf(startUtc) !== minuteOf(campaign.startAt)) patch.startAt = startUtc;
+      if ((end !== initialEnd || zoneChanged) && minuteOf(endUtc) !== minuteOf(campaign.endAt)) patch.endAt = endUtc;
       onSaved(Object.keys(patch).length ? await api<CampaignDetail>(`/campaigns/${campaign.id}`, { method: 'PATCH', body: patch }) : campaign);
     } catch (failure) { setError(bookingError(failure)); } finally { setBusy(false); }
   }
@@ -106,11 +118,11 @@ function BasicStep({ campaign, advertisers, agencies, owners, onSaved }: {
     <form onSubmit={submit}><fieldset disabled={busy} className="form-grid two-columns">
       <label className="full">{text('field.name')}<input name="name" required minLength={3} maxLength={150} defaultValue={campaign?.name} /></label>
       <label>{text('booking.advertiser')}<select name="advertiserId" required defaultValue={campaign?.advertiser.id ?? ''}>
-        <option value="">{text('common.select')}</option>{advertisers.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}</select></label>
+        <option value="">{text('common.select')}</option>{choices(advertisers, campaign?.advertiser).map(org => <option key={org.id} value={org.id}>{label(org)}</option>)}</select></label>
       <label>{text('booking.agency')}<select name="agencyId" defaultValue={campaign?.agency?.id ?? ''}>
-        <option value="">{text('booking.noAgency')}</option>{agencies.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}</select></label>
+        <option value="">{text('booking.noAgency')}</option>{choices(agencies, campaign?.agency).map(org => <option key={org.id} value={org.id}>{label(org)}</option>)}</select></label>
       <label>{text('booking.owner')}<select name="internalOwnerId" required defaultValue={campaign?.internalOwner.id ?? ''}>
-        <option value="">{text('common.select')}</option>{owners.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label>
+        <option value="">{text('common.select')}</option>{choices(owners, campaign?.internalOwner).map(user => <option key={user.id} value={user.id}>{label(user)}</option>)}</select></label>
       <label>{text('booking.timezone')}<input name="timezone" required maxLength={100} value={zone} onChange={event => setZone(event.target.value)} /></label>
       <label>{text('booking.startAt')}<input name="start" type="datetime-local" required value={start} onChange={event => setStart(event.target.value)} /></label>
       <label>{text('booking.endAt')}<input name="end" type="datetime-local" required value={end} onChange={event => setEnd(event.target.value)} /></label>
@@ -141,7 +153,12 @@ function ScreensStep({ campaign, venues, onChange, onNext, onBack }: {
     const query = new URLSearchParams({ page: String(page), pageSize: '20' });
     for (const [key, value] of Object.entries(applied)) if (value) query.set(key, value);
     api<PageResult<ScreenOption>>(`/campaigns/${campaign.id}/screen-options?${query}`)
-      .then(result => { if (live) { setData(result); setError(''); } })
+      .then(result => {
+        if (!live) return;
+        // An emptied last page (e.g. after removals under the "only selected" filter) steps back to the last real page.
+        if (!result.items.length && result.total > 0 && page > 1) { setPage(Math.max(1, Math.ceil(result.total / result.pageSize))); return; }
+        setData(result); setError('');
+      })
       .catch(failure => { if (live) setError(bookingError(failure)); });
     return () => { live = false; };
   }, [campaign.id, applied, page, reload, scheduleKey]);
@@ -162,7 +179,7 @@ function ScreensStep({ campaign, venues, onChange, onNext, onBack }: {
   return <section className="card" aria-label={text('booking.step.screens')}>
     <h2>{text('booking.step.screens')}</h2>
     <p className="hint">{text('booking.screensSelected', { count: campaign.screens.length })}</p>
-    <form className="form-grid two-columns inventory-filters" onSubmit={event => { event.preventDefault(); setPage(1); setApplied(filters); }} aria-label={text('booking.filters')}>
+    <form className="form-grid two-columns inventory-filters" onSubmit={event => { event.preventDefault(); setChecked(new Set()); setPage(1); setApplied(filters); }} aria-label={text('booking.filters')}>
       <label>{text('inventory.venue')}<select value={filters.venueId} onChange={event => setFilters({ ...filters, venueId: event.target.value })}>
         <option value="">{text('inventory.all')}</option>{venues.map(venue => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></label>
       <label>{text('inventory.city')}<input maxLength={100} value={filters.city} onChange={event => setFilters({ ...filters, city: event.target.value })} /></label>
@@ -190,57 +207,97 @@ function ScreensStep({ campaign, venues, onChange, onNext, onBack }: {
         <td>{row.selected ? <span className="badge good">{text('booking.inBooking')}</span> : <span className="muted">—</span>}</td>
       </tr>)}</tbody></table></div>
     {data && !rows.length && <p className="empty-inline">{text('booking.noScreens')}</p>}
-    {data && <ButtonPager data={data} onPage={setPage} />}
+    {data && <ButtonPager data={data} onPage={next => { setChecked(new Set()); setPage(next); }} />}
     <StepActions onBack={onBack}><button type="button" className="button primary" onClick={onNext}>{text('booking.next')}</button></StepActions>
   </section>;
 }
 
+/** Decimal comparison key: trailing zeros after the point do not matter ("12.5000" equals "12.5"). */
+function norm(value: unknown): string | null {
+  if (value === null || value === undefined || value === '') return null;
+  const text = String(value);
+  return text.includes('.') ? text.replace(/0+$/, '').replace(/\.$/, '') : text;
+}
+const COMMERCIAL_AMOUNTS = ['unitPrice', 'budget', 'contractedAmount', 'guaranteedImpressions', 'contractedQuantity', 'publisherSharePct', 'protargetSharePct'] as const;
+
 function CommercialStep({ campaign, onSaved, onBack }: { campaign: CampaignDetail; onSaved: (value: CampaignDetail) => void; onBack: () => void }) {
   const text = useText();
   const commercial = campaign.commercial;
+  const formRef = useRef<HTMLFormElement>(null);
   const [model, setModel] = useState<string>(commercial.pricingModel ?? '');
+  const [confirmNone, setConfirmNone] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | ''>('');
   const input = (name: string, label: MessageKey, value: string | number | null, hint?: MessageKey) =>
     <div className="field"><label>{text(label)}<input name={name} inputMode="decimal" defaultValue={value ?? ''} aria-describedby={hint ? `${name}-hint` : undefined} /></label>
       {hint && <span className="hint" id={`${name}-hint`}>{text(hint)}</span>}</div>;
+  const anyValue = () => {
+    const form = formRef.current ? new FormData(formRef.current) : null;
+    return COMMERCIAL_AMOUNTS.some(name => (form ? field(form, name) : '') || (commercial as unknown as Record<string, unknown>)[name]);
+  };
+  function chooseModel(value: string) {
+    if (!value && model && anyValue()) { setConfirmNone(true); return; }
+    setModel(value);
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
     const form = new FormData(event.currentTarget);
     const get = (name: string) => field(form, name) || null;
+    // "125,50" is how a Turkish keyboard writes a decimal; the API only knows the point.
+    const decimal = (name: string) => get(name)?.replace(',', '.') ?? null;
     const check = (value: string | null, pattern: RegExp, positive = false) =>
       value === null || (pattern.test(value) && (!positive || /[1-9]/.test(value)));
-    const body = {
-      pricingModel: model || null, currency: field(form, 'currency') || commercial.currency,
-      unitPrice: get('unitPrice'), budget: get('budget'), contractedAmount: get('contractedAmount'),
-      guaranteedImpressions: get('guaranteedImpressions'), contractedQuantity: get('contractedQuantity'),
-      overdeliveryTolerancePct: field(form, 'overdeliveryTolerancePct') || commercial.overdeliveryTolerancePct,
-      pgBillingBasis: field(form, 'pgBillingBasis') || commercial.pgBillingBasis,
-      publisherSharePct: get('publisherSharePct'), protargetSharePct: get('protargetSharePct'),
+    const priced = !!model;
+    const maxRaw = get('maxPlayoutsPerHourPerScreen');
+    const wanted: Record<string, string | number | null> = {
+      pricingModel: model || null,
+      unitPrice: priced ? decimal('unitPrice') : null, budget: priced ? decimal('budget') : null,
+      contractedAmount: priced ? decimal('contractedAmount') : null,
+      guaranteedImpressions: priced ? get('guaranteedImpressions') : null, contractedQuantity: priced ? get('contractedQuantity') : null,
+      publisherSharePct: priced ? decimal('publisherSharePct') : null, protargetSharePct: priced ? decimal('protargetSharePct') : null,
       primaryGoal: get('primaryGoal'), targetPlayouts: get('targetPlayouts'), targetImpressions: get('targetImpressions'),
-      maxPlayoutsPerHourPerScreen: get('maxPlayoutsPerHourPerScreen') === null ? null : Number(get('maxPlayoutsPerHourPerScreen')),
+      maxPlayoutsPerHourPerScreen: maxRaw === null ? null : Number(maxRaw.replace(',', '.')),
     };
+    // Currency, tolerance and PG basis only exist once a pricing model is chosen; they are never invented for "none".
+    const tolerance = priced ? (decimal('overdeliveryTolerancePct') ?? '') : null;
+    if (priced) {
+      wanted.currency = field(form, 'currency') || commercial.currency;
+      wanted.overdeliveryTolerancePct = tolerance;
+      if (model === 'PG') wanted.pgBillingBasis = field(form, 'pgBillingBasis') || commercial.pgBillingBasis;
+    }
     setError('');
-    const max = body.maxPlayoutsPerHourPerScreen;
-    const valid = check(body.unitPrice, money, true) && check(body.budget, money, true) && check(body.contractedAmount, money, true)
-      && check(body.guaranteedImpressions, count) && check(body.contractedQuantity, count) && percent.test(body.overdeliveryTolerancePct)
-      && check(body.publisherSharePct, percent) && check(body.protargetSharePct, percent)
-      && check(body.targetPlayouts, count) && check(body.targetImpressions, count)
+    const max = wanted.maxPlayoutsPerHourPerScreen as number | null;
+    const text_ = (name: string) => wanted[name] as string | null;
+    const valid = check(text_('unitPrice'), money, true) && check(text_('budget'), money, true) && check(text_('contractedAmount'), money, true)
+      && check(text_('guaranteedImpressions'), count) && check(text_('contractedQuantity'), count) && (tolerance === null || percent.test(tolerance))
+      && check(text_('publisherSharePct'), percent) && check(text_('protargetSharePct'), percent)
+      && check(text_('targetPlayouts'), count) && check(text_('targetImpressions'), count)
       && (max === null || (Number.isInteger(max) && max >= 1 && max <= 3600));
     if (!valid) { setError('booking.error.numbers'); return; }
-    if (body.publisherSharePct && body.protargetSharePct && Math.abs(Number(body.publisherSharePct) + Number(body.protargetSharePct) - 100) > 0.0001) {
-      setError('booking.error.shares'); return;
-    }
+    const publisher = text_('publisherSharePct'); const protarget = text_('protargetSharePct');
+    if (publisher && protarget && Math.abs(Number(publisher) + Number(protarget) - 100) > 0.0001) { setError('booking.error.shares'); return; }
+    // Only fields whose value really changed are sent, so an unchanged step never touches a READY booking.
+    const stored: Record<string, unknown> = {
+      pricingModel: commercial.pricingModel, currency: commercial.currency, unitPrice: commercial.unitPrice, budget: commercial.budget,
+      contractedAmount: commercial.contractedAmount, guaranteedImpressions: commercial.guaranteedImpressions,
+      contractedQuantity: commercial.contractedQuantity, overdeliveryTolerancePct: commercial.overdeliveryTolerancePct,
+      pgBillingBasis: commercial.pgBillingBasis, publisherSharePct: commercial.publisherSharePct, protargetSharePct: commercial.protargetSharePct,
+      primaryGoal: campaign.primaryGoal, targetPlayouts: campaign.targetPlayouts, targetImpressions: campaign.targetImpressions,
+      maxPlayoutsPerHourPerScreen: campaign.maxPlayoutsPerHourPerScreen,
+    };
+    const patch: Record<string, unknown> = {};
+    for (const [name, value] of Object.entries(wanted)) if (norm(value) !== norm(stored[name])) patch[name] = value;
+    if (!Object.keys(patch).length) { onSaved(campaign); return; }
     setBusy(true);
-    try { onSaved(await api<CampaignDetail>(`/campaigns/${campaign.id}`, { method: 'PATCH', body })); }
+    try { onSaved(await api<CampaignDetail>(`/campaigns/${campaign.id}`, { method: 'PATCH', body: patch })); }
     catch (failure) { setError(bookingError(failure)); } finally { setBusy(false); }
   }
   return <section className="card" aria-label={text('booking.step.commercial')}>
     <h2>{text('booking.step.commercial')}</h2>
-    <form onSubmit={submit}><fieldset disabled={busy} className="form-grid two-columns">
+    <form ref={formRef} onSubmit={submit}><fieldset disabled={busy} className="form-grid two-columns">
       <h3 className="full">{text('booking.commercial')}</h3>
-      <label>{text('booking.pricingModel')}<select name="pricingModel" value={model} onChange={event => setModel(event.target.value)}>
+      <label>{text('booking.pricingModel')}<select name="pricingModel" value={model} onChange={event => chooseModel(event.target.value)}>
         <option value="">{text('booking.pricing.none')}</option>
         {Object.values(PricingModel).map(value => <option key={value} value={value}>{text(`booking.pricing.${value}`)}</option>)}</select></label>
       {!model && <p className="hint">{text('booking.commercialEmpty')}</p>}
@@ -270,6 +327,9 @@ function CommercialStep({ campaign, onSaved, onBack }: { campaign: CampaignDetai
       <div className="inventory-actions full"><button type="button" className="button quiet" onClick={onBack}>{text('booking.back')}</button>
         <button className="button primary">{text(busy ? 'common.working' : 'booking.saveNext')}</button></div>
     </fieldset></form>
+    {confirmNone && <ConfirmDialog title="booking.pricingNoneTitle" confirmLabel="booking.pricingNoneConfirm"
+      onConfirm={() => { setModel(''); setConfirmNone(false); }} onCancel={() => setConfirmNone(false)}>
+      <p>{text('booking.pricingNoneText')}</p></ConfirmDialog>}
   </section>;
 }
 
@@ -277,26 +337,36 @@ function CreativesStep({ campaign, onChange, onNext, onBack }: {
   campaign: CampaignDetail; onChange: (value: CampaignDetail) => void; onNext: () => void; onBack: () => void;
 }) {
   const text = useText();
-  const [items, setItems] = useState<CreativeSummary[] | null>(null);
+  const [data, setData] = useState<CreativePage | null>(null);
+  const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | ''>('');
   const [showUpload, setShowUpload] = useState(false);
   const [reload, setReload] = useState(0);
   useEffect(() => {
     let live = true;
-    api<CreativePage>(`/creatives?advertiserId=${campaign.advertiser.id}&pageSize=100`)
-      .then(result => { if (live) setItems(result.items); }).catch(failure => { if (live) setError(bookingError(failure)); });
+    api<CreativePage>(`/creatives?advertiserId=${campaign.advertiser.id}&page=${page}&pageSize=20`)
+      .then(result => {
+        if (!live) return;
+        if (!result.items.length && result.total > 0 && page > 1) { setPage(Math.max(1, Math.ceil(result.total / result.pageSize))); return; }
+        setData(result); setError('');
+      }).catch(failure => { if (live) setError(bookingError(failure)); });
     return () => { live = false; };
-  }, [campaign.advertiser.id, reload]);
+  }, [campaign.advertiser.id, page, reload]);
+  const items = data?.items ?? [];
   const linked = new Set(campaign.creatives.map(creative => creative.id));
   async function link(creative: CreativeSummary, unlink: boolean) {
     if (busy) return;
     setBusy(true); setError('');
     try { onChange(await api<CampaignDetail>(`/campaigns/${campaign.id}/creatives${unlink ? '/remove' : ''}`, { method: 'POST', body: { creativeId: creative.id } })); }
-    catch (failure) { setError(bookingError(failure)); } finally { setBusy(false); }
+    catch (failure) { setError(bookingError(failure, 'creativeLink')); setReload(value => value + 1); } finally { setBusy(false); }
   }
   const advertiser: OrgRef = { id: campaign.advertiser.id, name: campaign.advertiser.name, type: 'ADVERTISER' };
-  const replaceItem = (updated: CreativeSummary) => setItems(previous => previous?.map(item => item.id === updated.id ? updated : item) ?? previous);
+  // Approving, rejecting or revoking changes the booking too (READY -> DRAFT, approved count), so it is reloaded as well.
+  async function reviewed(updated: CreativeSummary) {
+    setData(previous => previous ? { ...previous, items: previous.items.map(item => item.id === updated.id ? updated : item) } : previous);
+    try { onChange(await api<CampaignDetail>(`/campaigns/${campaign.id}`)); } catch (failure) { setError(bookingError(failure)); }
+  }
   return <section className="card" aria-label={text('booking.step.creatives')}>
     <h2>{text('booking.step.creatives')}</h2>
     <p className="hint">{text('booking.creativesHint', { name: campaign.advertiser.name })}</p>
@@ -304,20 +374,22 @@ function CreativesStep({ campaign, onChange, onNext, onBack }: {
     <div className="table-scroll"><table>
       <caption className="visually-hidden">{text('booking.step.creatives')}</caption>
       <thead><tr><th>{text('creative.code')}</th><th>{text('creative.kind')}</th><th>{text('field.status')}</th><th>{text('common.actions')}</th></tr></thead>
-      <tbody>{(items ?? []).map(creative => <tr key={creative.id} data-creative={creative.code}>
+      <tbody>{items.map(creative => <tr key={creative.id} data-creative={creative.code}>
         <td><strong>{creative.code}</strong><small>{creative.originalFilename}</small></td>
         <td><CreativeFacts creative={creative} /></td>
-        <td><CreativeStatusBadge status={creative.status} />{linked.has(creative.id) && <span className="badge good">{text('booking.linked')}</span>}</td>
+        <td><CreativeStatusBadge status={creative.status} />{linked.has(creative.id) && <span className="badge good">{text('booking.linked')}</span>}
+          {linked.has(creative.id) && creative.status === 'REVOKED' && <small className="issue-inline">{text('creative.revokedNotice')}</small>}</td>
         <td><div className="stack-small">
           {linked.has(creative.id)
             ? <button type="button" className="button quiet" disabled={busy} onClick={() => link(creative, true)} aria-label={`${text('booking.unlink')} ${creative.code}`}>{text('booking.unlink')}</button>
-            : creative.status !== 'REJECTED' && <button type="button" className="button primary" disabled={busy} onClick={() => link(creative, false)} aria-label={`${text('booking.link')} ${creative.code}`}>{text('booking.link')}</button>}
-          <ReviewActions creative={creative} onChange={replaceItem} />
+            : creative.status !== 'REJECTED' && creative.status !== 'REVOKED' && <button type="button" className="button primary" disabled={busy} onClick={() => link(creative, false)} aria-label={`${text('booking.link')} ${creative.code}`}>{text('booking.link')}</button>}
+          <ReviewActions creative={creative} onChange={reviewed} />
         </div></td></tr>)}</tbody></table></div>
-    {items && !items.length && <p className="empty-inline">{text('creative.empty')}</p>}
+    {data && !items.length && <p className="empty-inline">{text('creative.empty')}</p>}
+    {data && <ButtonPager data={data} onPage={setPage} busy={busy} />}
     <div className="inventory-actions"><button type="button" className="button quiet" aria-expanded={showUpload} onClick={() => setShowUpload(value => !value)}>{text('creative.uploadInline')}</button>
       <Link className="text-link" href="/admin/creatives">{text('booking.openLibrary')}</Link></div>
-    {showUpload && <CreativeUploader advertisers={[advertiser]} advertiserId={advertiser.id} onDone={() => setReload(value => value + 1)} />}
+    {showUpload && <CreativeUploader advertisers={[advertiser]} advertiserId={advertiser.id} onDone={() => { setPage(1); setReload(value => value + 1); }} />}
     <StepActions onBack={onBack}><button type="button" className="button primary" onClick={onNext}>{text('booking.next')}</button></StepActions>
   </section>;
 }
@@ -356,7 +428,7 @@ function ScheduleStep({ campaign, onSaved, onBack }: { campaign: CampaignDetail;
           <span aria-hidden="true">–</span>
           <input type="time" aria-label={`${text(`weekday.${day as 1 | 2 | 3 | 4 | 5 | 6 | 7}`)} ${text('booking.to')} ${index + 1}`} value={slot.end} onChange={event => update(day, index, 'end', event.target.value)} />
           <button type="button" className="button quiet" onClick={() => setDays(previous => ({ ...previous, [day]: previous[day].filter((_, position) => position !== index) }))}>{text('booking.removeDaypart')}</button>
-          {slot.start && slot.end && slot.end < slot.start && <small>{text('booking.overnight')}</small>}
+          {isOvernight(slot.start, slot.end) && <small>{text('booking.overnight')}</small>}
         </div>)}
         <button type="button" className="button quiet" onClick={() => setDays(previous => ({ ...previous, [day]: [...previous[day], { start: '', end: '' }] }))}>{text('booking.addDaypart')}</button>
       </div>)}
@@ -375,6 +447,12 @@ function SummaryStep({ campaign, onChange, onBack }: { campaign: CampaignDetail;
   const [validation, setValidation] = useState<CampaignValidation | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | ''>('');
+  // Entering the summary always reads the booking again: approvals made elsewhere must not leave a stale count.
+  useEffect(() => {
+    let live = true;
+    api<CampaignDetail>(`/campaigns/${campaign.id}`).then(result => { if (live) onChange(result); }).catch(() => { /* validation below reports failures */ });
+    return () => { live = false; };
+  }, [campaign.id, onChange]);
   useEffect(() => {
     let live = true;
     api<CampaignValidation>(`/campaigns/${campaign.id}/validation`).then(result => { if (live) setValidation(result); })
@@ -389,7 +467,12 @@ function SummaryStep({ campaign, onChange, onBack }: { campaign: CampaignDetail;
     try {
       const updated = await api<CampaignDetail>(`/campaigns/${campaign.id}/transitions`, { method: 'POST', body: { to: 'READY' } });
       onChange(updated); router.push(`${campaignBase}/${campaign.id}`);
-    } catch (failure) { setError(bookingError(failure)); setBusy(false); }
+    } catch (failure) {
+      setError(bookingError(failure)); setBusy(false);
+      if (failure instanceof RequestError && failure.status === 409) {
+        try { onChange(await api<CampaignDetail>(`/campaigns/${campaign.id}`)); } catch { /* the error above stays */ }
+      }
+    }
   }
   return <section className="card" aria-label={text('booking.step.summary')}>
     <h2>{text('booking.step.summary')}</h2>

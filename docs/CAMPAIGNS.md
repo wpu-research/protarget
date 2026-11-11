@@ -32,7 +32,9 @@ ajans/marka portal görünürlüğü sonraki story'lerdedir.
    onayı (`APPROVED`) ister; geçmeyen dosya saklanmaz, `REJECTED` + neden kodu
    kaydedilir. Görsellerde gösterim süresi elle girilir (varsayılan yok).
    Onaylı kreatifin dosyası/metadata'sı değişmez; yeni sürüm `replacesId` ile.
-   Aynı reklamverende aynı dosya ikinci kez yüklenemez (409). Antivirüs yok.
+   Aynı reklamverende reddedilmemiş aynı dosya ikinci kez yüklenemez (409;
+   reddedilen dosya yeniden denenebilir). Onaylı kreatif gerekçeyle geri
+   çekilebilir (`REVOKED`); bağlı READY booking DRAFT'a döner. Antivirüs yok.
 5. **Yayın planı:** kampanya geneli gün/saat dilimleri; gece yarısını aşan
    dilim izinli, aynı anda çakışan dilim reddedilir.
 6. **Özet ve hazırlık:** `GET /campaigns/:id/validation` engelleri ve

@@ -2,24 +2,27 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CreativeStatus } from '@prisma/client';
 import { IsEnum, IsString, IsUUID, Length, Matches } from 'class-validator';
 import type { CreativePage, CreativeSummary, UserRef } from '@protarget/shared';
-import { Optional, TrimText } from '../../common/inventory-validation';
+import { LowerUuid, Optional, TrimText } from '../../common/inventory-validation';
 import { PaginationDto } from '../../common/pagination.dto';
 
 export class CreativeQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() advertiserId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() advertiserId?: string;
   @ApiPropertyOptional({ enum: CreativeStatus }) @Optional() @IsEnum(CreativeStatus) status?: CreativeStatus;
   @ApiPropertyOptional({ maxLength: 100 }) @Optional() @TrimText() @IsString() @Length(1, 100) search?: string;
 }
 /** Multipart text fields that accompany the `file` part. */
 export class UploadCreativeDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID() advertiserId: string;
+  @ApiProperty({ format: 'uuid' }) @LowerUuid() @IsUUID() advertiserId: string;
   @ApiPropertyOptional({ type: String, example: '10', description: 'Images only: display seconds 1–300, up to 3 decimals. Rejected for video (measured).' })
   @Optional() @IsString() @Matches(/^(?:[1-9]\d{0,2})(?:\.\d{1,3})?$/)
   displayDurationSeconds?: string;
   @ApiPropertyOptional({ format: 'uuid', description: 'Earlier creative of the same advertiser this version replaces.' })
-  @Optional() @IsUUID() replacesId?: string;
+  @Optional() @LowerUuid() @IsUUID() replacesId?: string;
 }
 export class RejectCreativeDto {
+  @ApiProperty({ maxLength: 1000 }) @TrimText() @IsString() @Length(1, 1000) reason: string;
+}
+export class RevokeCreativeDto {
   @ApiProperty({ maxLength: 1000 }) @TrimText() @IsString() @Length(1, 1000) reason: string;
 }
 export class UserRefDto implements UserRef {
@@ -47,6 +50,9 @@ export class CreativeResponseDto implements CreativeSummary {
   @ApiProperty({ type: UserRefDto, nullable: true }) uploadedBy: UserRefDto | null;
   @ApiProperty({ type: UserRefDto, nullable: true }) approvedBy: UserRefDto | null;
   @ApiProperty({ type: String, format: 'date-time', nullable: true }) approvedAt: string | null;
+  @ApiProperty({ type: String, format: 'date-time', nullable: true }) revokedAt: string | null;
+  @ApiProperty({ type: UserRefDto, nullable: true }) revokedBy: UserRefDto | null;
+  @ApiProperty({ type: String, nullable: true }) revocationReason: string | null;
   @ApiProperty({ format: 'date-time' }) createdAt: string;
 }
 export class CreativePageDto implements CreativePage {

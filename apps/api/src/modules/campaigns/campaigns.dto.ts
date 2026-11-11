@@ -11,7 +11,7 @@ import type {
   CampaignValidation, CmsOperation, CmsOperationPage, OrgRef, ScheduleSlot, ValidationBlocker, ValidationWarning,
 } from '@protarget/shared';
 import { VALIDATION_BLOCKERS, VALIDATION_WARNINGS } from '@protarget/shared';
-import { Nullable, Optional, TrimText, IsTimezone, BooleanQuery } from '../../common/inventory-validation';
+import { Nullable, Optional, TrimText, IsTimezone, BooleanQuery, LowerUuid } from '../../common/inventory-validation';
 import { PaginationDto } from '../../common/pagination.dto';
 import { CreativeResponseDto, UserRefDto } from '../creatives/creatives.dto';
 
@@ -27,16 +27,16 @@ const UtcTimestamp = () => (target: object, key: string) => {
 
 export class CampaignQueryDto extends PaginationDto {
   @ApiPropertyOptional({ enum: BOOKING_STATUSES }) @Optional() @IsIn(BOOKING_STATUSES) status?: BookingStatus;
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() advertiserId?: string;
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() agencyId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() advertiserId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() agencyId?: string;
   @ApiPropertyOptional({ maxLength: 100 }) @Optional() @TrimText() @IsString() @Length(1, 100) search?: string;
 }
 
 export class CreateCampaignDto {
   @ApiProperty({ minLength: 3, maxLength: 150 }) @TrimText() @IsString() @Length(3, 150) name: string;
-  @ApiProperty({ format: 'uuid' }) @IsUUID() advertiserId: string;
-  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) @Nullable() @IsUUID() agencyId?: string | null;
-  @ApiProperty({ format: 'uuid', description: 'Active ADMIN user owning the booking internally.' }) @IsUUID() internalOwnerId: string;
+  @ApiProperty({ format: 'uuid' }) @LowerUuid() @IsUUID() advertiserId: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) @Nullable() @LowerUuid() @IsUUID() agencyId?: string | null;
+  @ApiProperty({ format: 'uuid', description: 'Active ADMIN user owning the booking internally.' }) @LowerUuid() @IsUUID() internalOwnerId: string;
   @ApiProperty({ format: 'date-time' }) @UtcTimestamp() startAt: string;
   @ApiProperty({ format: 'date-time' }) @UtcTimestamp() endAt: string;
   @ApiProperty({ example: 'Europe/Istanbul' }) @IsTimezone() timezone: string;
@@ -46,9 +46,9 @@ export class CreateCampaignDto {
 /** Every field optional; LIVE/PAUSED accept only notes and a later endAt. */
 export class UpdateCampaignDto {
   @ApiPropertyOptional({ minLength: 3, maxLength: 150 }) @Optional() @TrimText() @IsString() @Length(3, 150) name?: string;
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() advertiserId?: string;
-  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) @Nullable() @IsUUID() agencyId?: string | null;
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() internalOwnerId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() advertiserId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) @Nullable() @LowerUuid() @IsUUID() agencyId?: string | null;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() internalOwnerId?: string;
   @ApiPropertyOptional({ format: 'date-time' }) @Optional() @UtcTimestamp() startAt?: string;
   @ApiPropertyOptional({ format: 'date-time' }) @Optional() @UtcTimestamp() endAt?: string;
   @ApiPropertyOptional() @Optional() @IsTimezone() timezone?: string;
@@ -75,10 +75,10 @@ export class UpdateCampaignDto {
 
 export class ScreenIdsDto {
   @ApiProperty({ type: [String], format: 'uuid', maxItems: 100 })
-  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ArrayUnique() @IsUUID('all', { each: true }) screenIds: string[];
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(100) @ArrayUnique() @LowerUuid() @IsUUID('all', { each: true }) screenIds: string[];
 }
 export class CreativeLinkDto {
-  @ApiProperty({ format: 'uuid' }) @IsUUID() creativeId: string;
+  @ApiProperty({ format: 'uuid' }) @LowerUuid() @IsUUID() creativeId: string;
 }
 export class ScheduleSlotDto implements ScheduleSlot {
   @ApiProperty({ minimum: 1, maximum: 7, description: 'ISO weekday, 1 = Monday.' }) @IsInt() @Min(1) @Max(7) dayOfWeek: number;
@@ -94,21 +94,21 @@ export class TransitionDto {
   @ApiPropertyOptional({ maxLength: 1000 }) @Optional() @TrimText() @IsString() @Length(1, 1000) reason?: string;
 }
 export class ScreenOptionQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() venueId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() venueId?: string;
   @ApiPropertyOptional({ maxLength: 100 }) @Optional() @TrimText() @IsString() @Length(1, 100) city?: string;
   @ApiPropertyOptional({ enum: Orientation }) @Optional() @IsEnum(Orientation) orientation?: Orientation;
   @ApiPropertyOptional({ maxLength: 100 }) @Optional() @TrimText() @IsString() @Length(1, 100) search?: string;
   @ApiPropertyOptional({ description: 'true: only screens already in the campaign.' }) @Optional() @BooleanQuery() @IsIn([true, false]) selected?: boolean;
 }
 export class CmsOperationQueryDto extends PaginationDto {
-  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @IsUUID() screenId?: string;
+  @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() screenId?: string;
 }
 export class CreateCmsOperationDto {
-  @ApiProperty({ format: 'uuid', description: 'Screen UUID that is part of the campaign.' }) @IsUUID() screenId: string;
+  @ApiProperty({ format: 'uuid', description: 'Screen UUID that is part of the campaign.' }) @LowerUuid() @IsUUID() screenId: string;
   @ApiProperty({ enum: CmsOperationType }) @IsEnum(CmsOperationType) type: CmsOperationType;
   @ApiProperty({ format: 'date-time', description: 'When the operator performed it in the CMS; not in the future.' }) @UtcTimestamp() performedAt: string;
   @ApiPropertyOptional({ type: String, nullable: true, maxLength: 300 }) @Nullable() @TrimText() @IsString() @Length(1, 300) cmsReference?: string | null;
-  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 2000 }) @Nullable() @TrimText() @IsString() @Length(1, 2000) note?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 2000, description: 'Required (non-empty) for NOTE.' }) @Nullable() @TrimText() @IsString() @Length(1, 2000) note?: string | null;
 }
 
 export class OrgRefDto implements OrgRef {
@@ -148,6 +148,7 @@ export class CampaignSummaryDto implements CampaignSummary {
   @ApiProperty() flightEnded: boolean;
   @ApiProperty({ format: 'date-time' }) createdAt: string;
   @ApiProperty({ format: 'date-time' }) updatedAt: string;
+  @ApiProperty({ format: 'date-time', description: 'Server time of the last effective plan change; CMS_UPLOADED must be recorded after it.' }) planChangedAt: string;
 }
 export class CmsLastOperationDto {
   @ApiProperty({ enum: CmsOperationType }) type: CmsOperationType;
@@ -172,7 +173,8 @@ export class CampaignScreenDto implements CampaignScreenRow {
   @ApiProperty({ type: String, nullable: true }) currentMultiplier: string | null;
   @ApiProperty({ type: String, nullable: true }) weeklyWindowHours: string | null;
   @ApiProperty({ type: CmsLastOperationDto, nullable: true }) lastCmsOperation: CmsLastOperationDto | null;
-  @ApiProperty() cmsUploaded: boolean;
+  @ApiProperty({ description: 'A CMS_UPLOADED record exists that was recorded after planChangedAt.' }) cmsUploaded: boolean;
+  @ApiProperty({ description: 'CMS_UPLOADED records exist, but none after planChangedAt (plan changed since).' }) cmsUploadStale: boolean;
 }
 export class ScreenOptionDto extends CampaignScreenDto {
   @ApiProperty() selected: boolean;
@@ -215,7 +217,7 @@ export class WarningDto implements CampaignIssue<ValidationWarning> {
 export class CampaignValidationDto implements CampaignValidation {
   @ApiProperty({ type: [BlockerDto] }) blockers: BlockerDto[];
   @ApiProperty({ type: [WarningDto] }) warnings: WarningDto[];
-  @ApiProperty({ type: [String], description: 'Active screens with no declared CMS_UPLOADED record; blocks LIVE.' }) missingCmsUpload: string[];
+  @ApiProperty({ type: [String], description: 'Active screens with no CMS_UPLOADED record recorded after planChangedAt; blocks LIVE.' }) missingCmsUpload: string[];
   @ApiProperty({ format: 'date-time' }) checkedAt: string;
 }
 export class CmsOperationDto implements CmsOperation {

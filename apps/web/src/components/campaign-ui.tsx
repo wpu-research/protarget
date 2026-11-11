@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
-import { isBookingStatus, type CampaignScreenRow, type CreativeSummary, type PageResult } from '@protarget/shared';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { CreativeStatus, isBookingStatus, type CampaignScreenRow, type CreativeSummary, type PageResult } from '@protarget/shared';
 import type { MessageKey } from '@protarget/i18n';
 import { RequestError } from '@/lib/client';
 import { errorKey, useLocale, useText } from './Locale';
@@ -12,9 +12,21 @@ export function Feedback({ error, message }: { error?: MessageKey | ''; message?
   return <>{error && <p role="alert" className="error full">{text(error)}</p>}
     {message && <p role="status" className="success full">{text(message)}</p>}</>;
 }
-/** API error -> localized message; booking-specific codes first, then the shared mapping. */
-export function bookingError(error: unknown): MessageKey {
+export type BookingErrorContext = 'cms' | 'creativeLink';
+/** API error -> localized message; booking-specific codes first (and, per context, the server message), then the shared mapping. */
+export function bookingError(error: unknown, context?: BookingErrorContext): MessageKey {
   if (error instanceof RequestError) {
+    const message = error.serverMessage.toLowerCase();
+    if (context === 'cms') {
+      if (error.status === 409) return 'booking.error.cmsStatus';
+      if (error.code === 'VALIDATION_FAILED') {
+        if (/future/.test(message)) return 'booking.error.future';
+        if (/preced|before/.test(message)) return 'booking.error.cmsBeforeBooking';
+        if (/not part of this booking/.test(message)) return 'booking.error.cmsScreen';
+        if (/\bnote\b/.test(message)) return 'booking.error.noteRequired';
+      }
+    }
+    if (context === 'creativeLink' && error.status === 409 && error.code !== 'DUPLICATE_CREATIVE' && /revoked/.test(message)) return 'booking.error.creativeRevoked';
     const keys: Record<string, MessageKey> = {
       DUPLICATE_CREATIVE: 'booking.error.duplicate', STORAGE_UNAVAILABLE: 'booking.error.storage',
       PAYLOAD_TOO_LARGE: 'booking.error.tooLarge', CAMPAIGN_NOT_READY: 'booking.error.notReady',
@@ -92,7 +104,7 @@ function megabytes(bytes: string | null) {
 }
 export function CreativeStatusBadge({ status }: { status: string }) {
   const text = useText();
-  const known = (['UPLOADED', 'VALIDATING', 'APPROVED', 'REJECTED'] as const).find(item => item === status);
+  const known = Object.values(CreativeStatus).find(item => item === status);
   return <span className={`badge creative-${status.toLowerCase()}`}>{known ? text(`creative.status.${known}`) : status}</span>;
 }
 /** Measured metadata only; anything the server could not measure is shown as unknown. */
@@ -108,6 +120,9 @@ export function CreativeFacts({ creative }: { creative: CreativeSummary }): Reac
     <div><dt>{text('creative.codec')}</dt><dd><Unknown value={creative.videoCodec} fallback={creative.kind === 'IMAGE' ? 'creative.notApplicable' : 'booking.unknown'} /></dd></div>
     <div><dt>{text('creative.checksum')}</dt><dd><code>{creative.checksum ? creative.checksum.slice(0, 16) : text('booking.unknown')}</code></dd></div>
     {creative.rejectionReason && <div className="full"><dt>{text('creative.rejectionReason')}</dt><dd><RejectionReason reason={creative.rejectionReason} /></dd></div>}
+    {creative.status === 'REVOKED' && <div className="full"><dt>{text('creative.revocationReason')}</dt>
+      <dd>{creative.revocationReason ?? text('booking.unknown')}
+        {(creative.revokedBy || creative.revokedAt) && <small> {creative.revokedBy && `${text('creative.revokedBy')}: ${creative.revokedBy.name}`} {creative.revokedAt && <Stamp value={creative.revokedAt} zone="UTC" />}</small>}</dd></div>}
   </dl>;
 }
 
@@ -129,4 +144,29 @@ export function ScreenCells({ row }: { row: CampaignScreenRow }) {
       <small><Unknown value={row.defaultSlotLengthSec == null ? null : `${row.defaultSlotLengthSec} ${text('creative.seconds')}`} /></small></td>
     <td><Unknown value={row.weeklyWindowHours} fallback="booking.notComputable" suffix={row.weeklyWindowHours == null ? '' : ` ${text('booking.hoursUnit')}`} /></td>
   </>;
+}
+
+/** Midnight (00:00) is the end of the day, not a crossing into the next one. */
+export function isOvernight(start: string, end: string) { return !!start && !!end && end < start && end !== '00:00'; }
+/** CMS upload evidence for one screen: fresh, outdated after a plan change (G1), or missing. */
+export function CmsStateBadge({ row }: { row: CampaignScreenRow }) {
+  const text = useText();
+  if (row.cmsUploaded) return <span className="badge good">{text('booking.cmsUploaded')}</span>;
+  if (row.cmsUploadStale) return <span className="badge warn" data-state="stale">{text('booking.cmsStale')}</span>;
+  return <span className="badge">{text('booking.cmsMissing')}</span>;
+}
+/** Modal confirmation. Escape and the cancel button close it; focus starts on the dialog. */
+export function ConfirmDialog({ title, confirmLabel, busy = false, error, onConfirm, onCancel, children }: {
+  title: MessageKey; confirmLabel: MessageKey; busy?: boolean; error?: MessageKey | ''; onConfirm: () => void; onCancel: () => void; children: ReactNode;
+}) {
+  const text = useText();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => { ref.current?.focus(); }, []);
+  return <div className="dialog-backdrop"><div ref={ref} tabIndex={-1} className="dialog card" role="dialog" aria-modal="true" aria-label={text(title)}
+    onKeyDown={event => { if (event.key === 'Escape' && !busy) onCancel(); }}>
+    <h2>{text(title)}</h2>{children}
+    <Feedback error={error} />
+    <div className="inventory-actions"><button type="button" className="button primary" disabled={busy} onClick={onConfirm}>{text(busy ? 'common.working' : confirmLabel)}</button>
+      <button type="button" className="button quiet" disabled={busy} onClick={onCancel}>{text('common.cancel')}</button></div>
+  </div></div>;
 }

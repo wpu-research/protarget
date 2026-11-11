@@ -267,8 +267,14 @@ async function lifecycle(page: Page, language: 'tr' | 'en', mobile: boolean) {
   await expect(page.locator('.status-actions button')).toHaveCount(0);
   await expect(page.getByText(label('booking.limitedEdit'))).toHaveCount(0);
   await page.getByRole('tab', { name: label('booking.tab.activity'), exact: true }).click();
-  await expect(page.getByText('CAMPAIGN_STATUS_CHANGED').first()).toBeVisible();
-  await expect(page.getByText('CAMPAIGN_CMS_OPERATION_RECORDED').first()).toBeVisible();
+  // Activity is localized and metadata is a readable key/value list, never raw action codes or JSON.
+  await expect(page.getByText(label('booking.activity.CAMPAIGN_STATUS_CHANGED')).first()).toBeVisible();
+  await expect(page.getByText(label('booking.activity.CAMPAIGN_CMS_OPERATION_RECORDED')).first()).toBeVisible();
+  await expect(page.getByRole('tabpanel').getByText(/CAMPAIGN_[A-Z_]+/)).toHaveCount(0);
+  await expect(page.getByRole('tabpanel').locator('pre')).toHaveCount(0);
+  const cmsRow = page.getByRole('tabpanel').locator('tr[data-action="CAMPAIGN_CMS_OPERATION_RECORDED"]').first();
+  await cmsRow.locator('summary').click();
+  await expect(cmsRow.getByText(label('booking.metaValue.OPERATOR_DECLARED'))).toBeVisible();
   await overflow(page);
 
   // Server-side truth matches what the browser showed, in UTC.
@@ -463,4 +469,269 @@ test('non-admin roles cannot see campaign navigation or data', async ({ page, pl
   await page.context().clearCookies();
   await page.goto('/admin/campaigns');
   await expect(page).toHaveURL(/\/login$/);
+});
+
+/** Real-API fixture: a READY booking (approved MP4, daily dayparts, goal) with `screens` screens. `seconds` stores the end with seconds. */
+async function seedReady(label: string, options: { screens?: number; seconds?: boolean; status?: 'DRAFT' | 'READY' } = {}) {
+  const ship = await venue();
+  const targets: InventoryScreen[] = [];
+  for (let index = 0; index < (options.screens ?? 1); index++) targets.push(await screen(ship, `${label}${index}`));
+  const now = Date.now();
+  const create = await admin.post('/api/v1/campaigns', { data: {
+    name: `${run} ${label}`, advertiserId: advertiser.id, internalOwnerId: ownerId, timezone: 'Europe/Istanbul',
+    startAt: new Date(now - 3600_000).toISOString(),
+    endAt: new Date(now + 7 * 86400_000 + (options.seconds ? 37_000 : 0)).toISOString() } });
+  expect(create.status()).toBe(201);
+  const campaign = await create.json() as CampaignDetail; drafts.add(campaign.id);
+  expect((await admin.post(`/api/v1/campaigns/${campaign.id}/screens`, { data: { screenIds: targets.map(item => item.id) } })).status()).toBe(200);
+  const file = media('mp4');
+  const upload = await admin.post('/api/v1/creatives', { multipart: { advertiserId: advertiser.id, file: { name: file.name, mimeType: 'video/mp4', buffer: readFileSync(file.file) } } });
+  expect(upload.status()).toBe(201);
+  const creative = await upload.json() as CreativeSummary;
+  expect((await admin.post(`/api/v1/creatives/${creative.id}/approve`, { data: {} })).status()).toBe(200);
+  expect((await admin.post(`/api/v1/campaigns/${campaign.id}/creatives`, { data: { creativeId: creative.id } })).status()).toBe(200);
+  const slots = [1, 2, 3, 4, 5, 6, 7].map(dayOfWeek => ({ dayOfWeek, startTime: '00:00', endTime: '23:59' }));
+  expect((await admin.post(`/api/v1/campaigns/${campaign.id}/schedule`, { data: { slots } })).status()).toBe(200);
+  expect((await admin.patch(`/api/v1/campaigns/${campaign.id}`, { data: { primaryGoal: 'PLAYOUTS', targetPlayouts: '100', pricingModel: 'CPM', unitPrice: '12.5' } })).status()).toBe(200);
+  if (options.status !== 'DRAFT') expect((await admin.post(`/api/v1/campaigns/${campaign.id}/transitions`, { data: { to: 'READY' } })).status()).toBe(200);
+  return { campaign, creative, targets };
+}
+const detailOf = async (id: string) => await (await admin.get(`/api/v1/campaigns/${id}`)).json() as CampaignDetail;
+async function cms(campaignId: string, screenId: string, type: string, performedAt = new Date().toISOString()) {
+  const response = await admin.post(`/api/v1/campaigns/${campaignId}/cms-operations`, { data: { screenId, type, performedAt } });
+  expect(response.status()).toBe(201);
+}
+async function transition(campaignId: string, to: string, reason?: string) {
+  const response = await admin.post(`/api/v1/campaigns/${campaignId}/transitions`, { data: reason ? { to, reason } : { to } });
+  expect(response.status()).toBe(200);
+}
+
+test('revoke: approved creative -> REVOKED from the library and the wizard; READY bookings return to DRAFT; LIVE keeps status and can unlink', async ({ page }) => {
+  test.setTimeout(240000);
+  await session(page, 'en');
+  // Library: reason dialog, then the badge and the server agree.
+  const viaLibrary = await seedReady('revoke-lib');
+  await page.goto(`/admin/creatives?advertiserId=${advertiser.id}`);
+  await page.getByRole('button', { name: `${en['common.details']} ${viaLibrary.creative.code}` }).click();
+  await page.getByRole('button', { name: `${en['creative.revoke']} ${viaLibrary.creative.code}`, exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: en['creative.revokeTitle'] });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: en['creative.revokeConfirm'], exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText(en['creative.error.revokeReason']);
+  await dialog.getByLabel(en['creative.revokeReason'], { exact: true }).fill(`${run} wrong brand`);
+  const revoked = await submit<CreativeSummary>(page, `/creatives/${viaLibrary.creative.id}/revoke`, dialog.getByRole('button', { name: en['creative.revokeConfirm'], exact: true }));
+  expect(revoked.status).toBe('REVOKED'); expect(revoked.revocationReason).toBe(`${run} wrong brand`);
+  const region = page.getByRole('region', { name: `${en['creative.detail']} ${viaLibrary.creative.code}` });
+  await expect(region.getByText(en['creative.status.REVOKED']).first()).toBeVisible();
+  await expect(region.getByText(`${run} wrong brand`)).toBeVisible();
+  await expect(page.getByRole('button', { name: `${en['creative.revoke']} ${viaLibrary.creative.code}` })).toHaveCount(0);
+  expect((await detailOf(viaLibrary.campaign.id)).status).toBe('DRAFT'); // READY -> DRAFT, automatically
+  await overflow(page);
+
+  // Wizard: revoke from the creatives step; the header reloads the booking (READY -> DRAFT).
+  const viaWizard = await seedReady('revoke-wiz');
+  await page.goto(`/admin/campaigns/${viaWizard.campaign.id}/edit`);
+  await expect(page.locator('.wizard .section-heading .badge').first()).toHaveText(en['booking.status.READY']);
+  await page.getByRole('list', { name: en['booking.steps'] }).getByRole('button', { name: new RegExp(en['booking.step.creatives']) }).click();
+  const row = page.locator(`tr[data-creative="${viaWizard.creative.code}"]`);
+  await row.getByRole('button', { name: `${en['creative.revoke']} ${viaWizard.creative.code}`, exact: true }).click();
+  const wizardDialog = page.getByRole('dialog', { name: en['creative.revokeTitle'] });
+  await wizardDialog.getByLabel(en['creative.revokeReason'], { exact: true }).fill(`${run} contract ended`);
+  await submit(page, `/creatives/${viaWizard.creative.id}/revoke`, wizardDialog.getByRole('button', { name: en['creative.revokeConfirm'], exact: true }));
+  await expect(row.locator('.badge.creative-revoked')).toBeVisible();
+  await expect(row.getByText(en['creative.revokedNotice'])).toBeVisible();
+  await expect(page.locator('.wizard .section-heading .badge').first()).toHaveText(en['booking.status.DRAFT']);
+  await expect(row.getByRole('button', { name: `${en['booking.unlink']} ${viaWizard.creative.code}` })).toBeVisible();
+  await overflow(page);
+
+  // LIVE booking: status stays (a declaration), a warning appears, and only the revoked creative may be unlinked.
+  const live = await seedReady('revoke-live');
+  await cms(live.campaign.id, live.targets[0].id, 'CMS_UPLOADED');
+  await transition(live.campaign.id, 'LIVE');
+  expect((await admin.post(`/api/v1/creatives/${live.creative.id}/revoke`, { data: { reason: `${run} api revoke` } })).status()).toBe(200);
+  expect((await detailOf(live.campaign.id)).status).toBe('LIVE');
+  await page.goto(`/admin/campaigns/${live.campaign.id}`);
+  await expect(page.locator('[data-testid="validation"] [data-code="REVOKED_CREATIVE"]')).toBeVisible();
+  await page.getByRole('tab', { name: en['booking.tab.creatives'], exact: true }).click();
+  await expect(page.getByText(en['creative.revokedNotice'])).toBeVisible();
+  await submit(page, `/campaigns/${live.campaign.id}/creatives/remove`, page.getByRole('button', { name: `${en['booking.unlink']} ${live.creative.code}` }));
+  await expect(page.locator(`[data-creative="${live.creative.code}"]`)).toHaveCount(0);
+  expect((await detailOf(live.campaign.id)).creatives).toHaveLength(0);
+});
+
+test('stale CMS upload after a plan change disables LIVE and shows the stale notice until a new record is entered', async ({ page }) => {
+  test.setTimeout(180000);
+  await session(page, 'tr');
+  const seeded = await seedReady('stale');
+  await cms(seeded.campaign.id, seeded.targets[0].id, 'CMS_UPLOADED');
+  expect((await detailOf(seeded.campaign.id)).screens[0].cmsUploaded).toBe(true);
+  // A real plan change (READY -> DRAFT), then READY again: the earlier upload record no longer counts.
+  expect((await admin.patch(`/api/v1/campaigns/${seeded.campaign.id}`, { data: { targetPlayouts: '250' } })).status()).toBe(200);
+  await transition(seeded.campaign.id, 'READY');
+  const stale = await detailOf(seeded.campaign.id);
+  expect(stale.screens[0].cmsUploaded).toBe(false); expect(stale.screens[0].cmsUploadStale).toBe(true);
+  await page.goto(`/admin/campaigns/${seeded.campaign.id}`);
+  const live = page.getByRole('button', { name: tr['booking.action.LIVE'], exact: true });
+  await expect(live).toBeDisabled();
+  await page.getByRole('tab', { name: tr['booking.tab.cms'], exact: true }).click();
+  await expect(page.getByTestId('cms-stale')).toContainText(tr['booking.cmsStaleHint']);
+  await expect(page.locator(`tr[data-screen="${seeded.targets[0].screenId}"]`).first().getByText(tr['booking.cmsStale'])).toBeVisible();
+  await overflow(page);
+  await page.getByRole('tab', { name: tr['booking.tab.screens'], exact: true }).click();
+  await expect(page.locator(`tr[data-screen="${seeded.targets[0].screenId}"]`).getByText(tr['booking.cmsStale'])).toBeVisible();
+  // A fresh record clears the notice and enables LIVE.
+  await page.getByRole('tab', { name: tr['booking.tab.cms'], exact: true }).click();
+  const form = page.getByRole('form', { name: tr['booking.cmsRecord'] });
+  await form.locator('select[name="screenId"]').selectOption({ label: `${seeded.targets[0].screenId} · ${seeded.targets[0].name}` });
+  await submit(page, `/campaigns/${seeded.campaign.id}/cms-operations`, form.getByRole('button', { name: tr['booking.cmsSubmit'], exact: true }), 201);
+  await expect(page.getByTestId('cms-stale')).toHaveCount(0);
+  await expect(live).toBeEnabled();
+  expect((await detailOf(seeded.campaign.id)).screens[0].cmsUploaded).toBe(true);
+});
+
+test('CMS form: drafts accept only notes; NOTE needs text; server status/time errors map to specific messages', async ({ page }) => {
+  test.setTimeout(180000);
+  await session(page, 'en');
+  const draft = await seedReady('cms-draft', { status: 'DRAFT' });
+  await page.goto(`/admin/campaigns/${draft.campaign.id}`);
+  await page.getByRole('tab', { name: en['booking.tab.cms'], exact: true }).click();
+  const form = page.getByRole('form', { name: en['booking.cmsRecord'] });
+  await expect(form.locator('select[name="type"] option')).toHaveCount(1);
+  await expect(form.getByText(en['booking.cmsDraftHint'])).toBeVisible();
+  await form.locator('select[name="screenId"]').selectOption({ label: `${draft.targets[0].screenId} · ${draft.targets[0].name}` });
+  await form.locator('textarea[name="note"]').evaluate((node: HTMLTextAreaElement) => { node.required = false; });
+  await form.getByRole('button', { name: en['booking.cmsSubmit'], exact: true }).click();
+  await expect(form.getByRole('alert')).toHaveText(en['booking.error.noteRequired']);
+  // The default time is the current minute (never in the future) and records fine.
+  await form.getByLabel(en['booking.cmsNote'], { exact: true }).fill(`${run} draft note`);
+  await submit(page, `/campaigns/${draft.campaign.id}/cms-operations`, form.getByRole('button', { name: en['booking.cmsSubmit'], exact: true }), 201);
+  // API truth for the wrong-status case (COMPLETED/CANCELLED -> 409): the mapped message, not a generic one.
+  const gone = await seedReady('cms-cancel', { status: 'DRAFT' });
+  expect((await admin.post(`/api/v1/campaigns/${gone.campaign.id}/transitions`, { data: { to: 'CANCELLED', reason: 'x' } })).status()).toBe(200);
+  const refused = await admin.post(`/api/v1/campaigns/${gone.campaign.id}/cms-operations`, { data: { screenId: gone.targets[0].id, type: 'NOTE', note: 'n', performedAt: new Date().toISOString() } });
+  expect(refused.status()).toBe(409);
+});
+
+test('pause dialog lists screens without a PLAYBACK_PAUSED record; limited edit sends only the changed field', async ({ page }) => {
+  test.setTimeout(180000);
+  await session(page, 'en');
+  const seeded = await seedReady('pause', { screens: 2, seconds: true });
+  const [first, second] = seeded.targets;
+  for (const target of seeded.targets) await cms(seeded.campaign.id, target.id, 'CMS_UPLOADED');
+  await transition(seeded.campaign.id, 'LIVE');
+  await cms(seeded.campaign.id, first.id, 'PLAYBACK_PAUSED');
+  await page.goto(`/admin/campaigns/${seeded.campaign.id}`);
+  // P14: an end time stored with seconds must not be sent when only the notes change.
+  const notes = page.getByLabel(en['inventory.notes'], { exact: true });
+  await notes.fill(`${run} notes only`);
+  const [request] = await Promise.all([
+    page.waitForRequest(item => new URL(item.url()).pathname === `/api/v1/campaigns/${seeded.campaign.id}` && item.method() === 'PATCH'),
+    page.getByRole('button', { name: en['common.save'], exact: true }).click(),
+  ]);
+  expect(Object.keys(request.postDataJSON())).toEqual(['notes']);
+  await expect(page.getByRole('status').filter({ hasText: en['common.saved'] })).toBeVisible();
+  expect((await detailOf(seeded.campaign.id)).status).toBe('LIVE');
+  // P11: the dialog warns about the screen that still has no PLAYBACK_PAUSED record, and only that one.
+  await page.getByRole('button', { name: en['booking.action.PAUSED'], exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: en['booking.reasonTitle'] });
+  const warning = dialog.getByTestId('declaration-warning');
+  await expect(warning).toContainText(en['booking.pauseWarning']);
+  await expect(warning.locator(`li[data-screen="${second.screenId}"]`)).toBeVisible();
+  await expect(warning.locator(`li[data-screen="${first.screenId}"]`)).toHaveCount(0);
+  await overflow(page);
+  await dialog.getByLabel(en['booking.reason'], { exact: true }).fill(`${run} pause`);
+  const paused = await submit<CampaignDetail>(page, `/campaigns/${seeded.campaign.id}/transitions`, dialog.getByRole('button', { name: en['booking.action.PAUSED'], exact: true }));
+  expect(paused.status).toBe('PAUSED');
+  // A second booking whose screens are all paused shows no warning.
+  const quiet = await seedReady('pause-quiet');
+  await cms(quiet.campaign.id, quiet.targets[0].id, 'CMS_UPLOADED');
+  await transition(quiet.campaign.id, 'LIVE');
+  await cms(quiet.campaign.id, quiet.targets[0].id, 'PLAYBACK_PAUSED');
+  await page.goto(`/admin/campaigns/${quiet.campaign.id}`);
+  await page.getByRole('button', { name: en['booking.action.PAUSED'], exact: true }).click();
+  await expect(page.getByRole('dialog', { name: en['booking.reasonTitle'] })).toBeVisible();
+  await expect(page.getByTestId('declaration-warning')).toHaveCount(0);
+});
+
+test('no-op saves keep READY: wizard basics and commercial send nothing; archive and 409s are handled', async ({ page }) => {
+  test.setTimeout(180000);
+  await session(page, 'en');
+  const seeded = await seedReady('noop', { seconds: true });
+  const before = await detailOf(seeded.campaign.id);
+  const patches: string[] = [];
+  page.on('request', request => { if (request.method() === 'PATCH' && new URL(request.url()).pathname === `/api/v1/campaigns/${seeded.campaign.id}`) patches.push(request.postData() ?? ''); });
+  await page.goto(`/admin/campaigns/${seeded.campaign.id}/edit`);
+  await expect(page.getByRole('heading', { level: 2, name: en['booking.step.basic'], exact: true })).toBeVisible();
+  await page.getByRole('button', { name: en['booking.saveNext'], exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: en['booking.step.screens'], exact: true })).toBeVisible();
+  await page.getByRole('button', { name: en['booking.next'], exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: en['booking.step.commercial'], exact: true })).toBeVisible();
+  await page.getByRole('button', { name: en['booking.saveNext'], exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: en['booking.step.creatives'], exact: true })).toBeVisible();
+  expect(patches).toEqual([]); // nothing sent: stored seconds and "12.5000" vs "12.5" are not changes
+  const after = await detailOf(seeded.campaign.id);
+  expect(after.status).toBe('READY'); expect(after.planChangedAt).toBe(before.planChangedAt); expect(after.updatedAt).toBe(before.updatedAt);
+  // Archive asks first; cancelling changes nothing.
+  const draft = await seedReady('archive', { status: 'DRAFT' });
+  await page.goto(`/admin/campaigns/${draft.campaign.id}`);
+  await page.getByRole('button', { name: en['booking.archive'], exact: true }).click();
+  const confirm = page.getByRole('dialog', { name: en['booking.archiveTitle'] });
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: en['common.cancel'], exact: true }).click();
+  await expect(confirm).toHaveCount(0);
+  expect((await detailOf(draft.campaign.id)).status).toBe('DRAFT');
+  await page.getByRole('button', { name: en['booking.archive'], exact: true }).click();
+  const [archived] = await Promise.all([
+    page.waitForResponse(item => new URL(item.url()).pathname === `/api/v1/campaigns/${draft.campaign.id}/archive`),
+    page.getByRole('dialog', { name: en['booking.archiveTitle'] }).getByRole('button', { name: en['booking.archive'], exact: true }).click(),
+  ]);
+  expect(archived.status()).toBe(204);
+  await expect(page).toHaveURL(/\/admin\/campaigns$/);
+  drafts.delete(draft.campaign.id);
+  // 409 on a transition reloads the real state: the booking moved to DRAFT elsewhere, the page follows.
+  const other = await seedReady('conflict', { status: 'READY' });
+  await page.goto(`/admin/campaigns/${other.campaign.id}`);
+  await expect(page.locator('.status-card .badge').first()).toHaveText(en['booking.status.READY']);
+  await transition(other.campaign.id, 'DRAFT');
+  await page.getByRole('button', { name: en['booking.action.DRAFT'], exact: true }).click();
+  await expect(page.getByRole('alert').first()).toHaveText(en['booking.error.conflict']);
+  await expect(page.locator('.status-card .badge').first()).toHaveText(en['booking.status.DRAFT']);
+});
+
+test('commercial step accepts a decimal comma, confirms removing the pricing model and nulls only what was set', async ({ page }) => {
+  test.setTimeout(180000);
+  await session(page, 'tr');
+  const draft = await seedReady('comma', { status: 'DRAFT' });
+  await page.goto(`/admin/campaigns/${draft.campaign.id}/edit`);
+  const steps = page.getByRole('list', { name: tr['booking.steps'] });
+  await steps.getByRole('button', { name: new RegExp(tr['booking.step.commercial']) }).click();
+  await page.getByLabel(tr['booking.unitPrice'], { exact: true }).fill('125,50');
+  await page.getByLabel(tr['booking.budget'], { exact: true }).fill('1000,5');
+  const [request, response] = await Promise.all([
+    page.waitForRequest(item => item.method() === 'PATCH' && new URL(item.url()).pathname === `/api/v1/campaigns/${draft.campaign.id}`),
+    page.waitForResponse(item => item.request().method() === 'PATCH' && new URL(item.url()).pathname === `/api/v1/campaigns/${draft.campaign.id}`),
+    page.getByRole('button', { name: tr['booking.saveNext'], exact: true }).click(),
+  ]);
+  expect(request.postDataJSON()).toEqual({ unitPrice: '125.50', budget: '1000.5' });
+  expect(response.status()).toBe(200);
+  const saved = await response.json() as CampaignDetail;
+  expect(Number(saved.commercial.unitPrice)).toBe(125.5); expect(Number(saved.commercial.budget)).toBe(1000.5);
+  // Removing the model asks first. Cancel keeps it; confirm clears only the fields that were set.
+  await steps.getByRole('button', { name: new RegExp(tr['booking.step.commercial']) }).click();
+  await page.locator('select[name="pricingModel"]').selectOption('');
+  const dialog = page.getByRole('dialog', { name: tr['booking.pricingNoneTitle'] });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: tr['common.cancel'], exact: true }).click();
+  await expect(page.locator('select[name="pricingModel"]')).toHaveValue('CPM');
+  await page.locator('select[name="pricingModel"]').selectOption('');
+  await page.getByRole('dialog', { name: tr['booking.pricingNoneTitle'] }).getByRole('button', { name: tr['booking.pricingNoneConfirm'], exact: true }).click();
+  await expect(page.locator('select[name="pricingModel"]')).toHaveValue('');
+  await expect(page.getByLabel(tr['booking.currency'], { exact: true })).toHaveCount(0); // G3: defaults hidden without a model
+  const [cleared] = await Promise.all([
+    page.waitForRequest(item => item.method() === 'PATCH' && new URL(item.url()).pathname === `/api/v1/campaigns/${draft.campaign.id}`),
+    page.getByRole('button', { name: tr['booking.saveNext'], exact: true }).click(),
+  ]);
+  const body = cleared.postDataJSON() as Record<string, unknown>;
+  expect(body.pricingModel).toBeNull(); expect(body.unitPrice).toBeNull(); expect(body.budget).toBeNull();
+  expect(Object.keys(body).sort()).toEqual(['budget', 'pricingModel', 'unitPrice']);
 });

@@ -53,17 +53,30 @@ export interface S3Settings {
 export class S3Storage implements ObjectStorage {
   readonly driver = 's3' as const;
   private readonly client: S3Client;
-  constructor(private readonly settings: S3Settings, client?: S3Client) {
+  /** The SDK's own retry cannot replay a consumed file stream, so it is off (maxAttempts 1) and `put` retries
+   * itself with a fresh read stream per attempt. */
+  constructor(private readonly settings: S3Settings, client?: S3Client, private readonly retryDelayMs = 250) {
     this.client = client ?? new S3Client({
-      region: settings.region, endpoint: settings.endpoint, forcePathStyle: settings.forcePathStyle,
+      region: settings.region, endpoint: settings.endpoint, forcePathStyle: settings.forcePathStyle, maxAttempts: 1,
       credentials: { accessKeyId: settings.accessKeyId, secretAccessKey: settings.secretAccessKey },
     });
   }
   async put(key: string, sourcePath: string, contentType: string) {
     checkKey(key);
     const { size } = await stat(sourcePath);
-    await this.client.send(new PutObjectCommand({ Bucket: this.settings.bucket, Key: key,
-      Body: createReadStream(sourcePath), ContentLength: size, ContentType: contentType }));
+    const attempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      const body = createReadStream(sourcePath);
+      try {
+        await this.client.send(new PutObjectCommand({ Bucket: this.settings.bucket, Key: key,
+          Body: body, ContentLength: size, ContentType: contentType }));
+        return;
+      } catch (error) {
+        body.destroy();
+        if (attempt >= attempts) throw error;
+        await new Promise(resolve => setTimeout(resolve, this.retryDelayMs * attempt));
+      }
+    }
   }
   async get(key: string): Promise<StoredObject> {
     checkKey(key);
@@ -86,13 +99,15 @@ export type StorageConfig =
   | { driver: 'local'; root: string }
   | { driver: 's3'; s3: S3Settings };
 
-/** Production never falls back to the ephemeral container disk: unset driver disables uploads (503). */
+/** Only an explicit development/test NODE_ENV may fall back to the temp directory; an unset or any other
+ * NODE_ENV (production, staging, typos) with no driver disables uploads (503) instead of using ephemeral disk. */
 export function storageConfig(env: NodeJS.ProcessEnv): StorageConfig {
-  const nodeEnv = env.NODE_ENV ?? 'development';
+  const nodeEnv = env.NODE_ENV;
+  const devLike = nodeEnv === 'development' || nodeEnv === 'test';
   const driver = env.STORAGE_DRIVER?.trim();
   const fail = (name: string): never => { throw new Error(`Invalid or missing ${name}`); };
   if (!driver) {
-    return nodeEnv === 'production' ? { driver: 'disabled' } : { driver: 'local', root: join(tmpdir(), 'protarget-creatives') };
+    return devLike ? { driver: 'local', root: join(tmpdir(), 'protarget-creatives') } : { driver: 'disabled' };
   }
   if (driver === 'local') {
     const root = env.STORAGE_LOCAL_DIR?.trim();
@@ -107,7 +122,7 @@ export function storageConfig(env: NodeJS.ProcessEnv): StorageConfig {
     if (endpoint) {
       let url: URL;
       try { url = new URL(endpoint); } catch { return fail('S3_ENDPOINT'); }
-      if (!['http:', 'https:'].includes(url.protocol) || (nodeEnv === 'production' && url.protocol !== 'https:')) fail('S3_ENDPOINT');
+      if (!['http:', 'https:'].includes(url.protocol) || (!devLike && url.protocol !== 'https:')) fail('S3_ENDPOINT');
     }
     return { driver: 's3', s3: { bucket, accessKeyId, secretAccessKey, endpoint,
       region: env.S3_REGION?.trim() || 'us-east-1', forcePathStyle: env.S3_FORCE_PATH_STYLE === 'true' } };

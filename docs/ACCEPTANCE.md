@@ -10,8 +10,12 @@ Faz 0 kabulü ve ertelenen bulgular açık kalır.
   story'sinin izole DB'lerinin kopyalarına (6 migration + veri) uygulandı;
   gemi/ekran/çarpan/audit ve 8 eski kampanya satırı korundu.
 - Build 8/8, typecheck 11 görev, lint temiz.
-- **120 API unit + 2 web unit + 77 gerçek PostgreSQL integration + 36 Chromium E2E**
-  (11 Faz 0 + 19 envanter + 6 kampanya) geçti. Tümü Node 24.22.2 ile.
+- İlk tur: 120 API unit + 2 web unit + 77 integration + 36 E2E geçti.
+- CR-1 düzeltmelerinden sonra (ikinci migration `20261111000100_campaign_booking_review`,
+  test DB satır sayıları önce/sonra aynı): **136 API unit + 2 web unit + 88 gerçek
+  PostgreSQL integration + 42 Chromium E2E** geçti. Tümü Node 24.22.2 ile.
+- Yalnız birim testle doğrulananlar: CHECK/trigger ihlalinin 409'a eşlenmesi,
+  ffprobe kesintisinde 503, video döndürme, S3 yeniden denemesi.
 - E2E: TR masaüstü ve EN 375 px mobilde oluştur → ekran → H.264 yükle/onayla →
   plan → ticari/hedef → READY → CMS_UPLOADED → LIVE → PAUSED → COMPLETED;
   roller için 403/401. `STORAGE_UNAVAILABLE` hata eşlemesi testi

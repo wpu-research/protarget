@@ -7,12 +7,12 @@ import {
   BOOKING_STATUSES, type CampaignPage, type CampaignValidation, type OrgRef, type ScheduleSlot,
 } from '@protarget/shared';
 import { useText } from './Locale';
-import { BookingStatusBadge, ListPager, OperatorNote, Stamp } from './campaign-ui';
+import { BookingStatusBadge, isOvernight, ListPager, OperatorNote, Stamp } from './campaign-ui';
 
 export const campaignBase = '/admin/campaigns';
 type Filters = { status?: string; advertiserId?: string; search?: string; pageSize?: string };
 
-export function CampaignList({ data, advertisers, filters }: { data: CampaignPage; advertisers: OrgRef[]; filters: Filters }) {
+export function CampaignList({ data, advertisers, filters, truncated = false }: { data: CampaignPage; advertisers: OrgRef[]; filters: Filters; truncated?: boolean }) {
   const text = useText();
   const router = useRouter();
   function filter(event: FormEvent<HTMLFormElement>) {
@@ -35,6 +35,7 @@ export function CampaignList({ data, advertisers, filters }: { data: CampaignPag
         <option value="">{text('inventory.all')}</option>
         {advertisers.map(org => <option key={org.id} value={org.id}>{org.name}</option>)}
       </select></label>
+      {truncated && <p className="notice full" role="note">{text('booking.listTruncated')}</p>}
       <label className="full">{text('booking.search')}<input name="search" maxLength={100} defaultValue={filters.search ?? ''} /></label>
       <div className="full"><button className="button quiet">{text('inventory.filter')}</button></div>
     </form>
@@ -95,7 +96,7 @@ export function ScheduleTable({ schedule, timezone }: { schedule: ScheduleSlot[]
     <tbody>{days.map(day => {
       const slots = schedule.filter(slot => slot.dayOfWeek === day).sort((a, b) => a.startTime.localeCompare(b.startTime));
       return <tr key={day}><td><strong>{text(`weekday.${day}`)}</strong></td>
-        <td>{slots.length ? slots.map(slot => <span key={`${slot.startTime}-${slot.endTime}`} className="badge slot">{slot.startTime}–{slot.endTime}{slot.endTime <= slot.startTime ? ` (${text('booking.overnight')})` : ''}</span>)
+        <td>{slots.length ? slots.map(slot => <span key={`${slot.startTime}-${slot.endTime}`} className="badge slot">{slot.startTime}–{slot.endTime}{isOvernight(slot.startTime, slot.endTime) ? ` (${text('booking.overnight')})` : ''}</span>)
           : <span className="muted">{text('booking.noDay')}</span>}</td></tr>;
     })}</tbody></table></div>;
 }

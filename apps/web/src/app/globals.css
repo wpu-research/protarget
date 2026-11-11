@@ -80,3 +80,6 @@ progress{width:100%;height:12px;accent-color:var(--accent)}
 .wizard .table-scroll table,.campaign-detail .table-scroll table{min-width:780px}
 .wizard td small,.campaign-detail td small{overflow-wrap:anywhere}
 .wizard>*,.campaign-detail>*,.campaigns>*,.creatives>*{min-width:0;max-width:100%}.wizard .card,.campaign-detail .card{overflow-wrap:break-word}
+.badge.creative-revoked{background:#fbe9c7;color:#7a4e0c}.badge[data-state=stale]{white-space:normal}
+.issue-inline{display:block;color:#7a4e0c;margin-top:4px;overflow-wrap:anywhere}.plain-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
+.activity-meta{display:grid;gap:4px;margin:8px 0 0;font-size:11px}.activity-meta dd{margin:0;overflow-wrap:anywhere}.activity-meta dt{font-weight:650}

@@ -1843,7 +1843,8 @@
                 "UPLOADED",
                 "VALIDATING",
                 "APPROVED",
-                "REJECTED"
+                "REJECTED",
+                "REVOKED"
               ]
             }
           },
@@ -2060,6 +2061,51 @@
         "responses": {
           "200": {
             "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      }
+    },
+    "/api/v1/creatives/{id}/revoke": {
+      "post": {
+        "operationId": "CreativesController_revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeCreativeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "APPROVED → REVOKED with a reason; terminal.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3179,6 +3225,11 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "planChangedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Server time of the last effective plan change; CMS_UPLOADED must be recorded after it."
           }
         },
         "required": [
@@ -3199,7 +3250,8 @@
           "creativeCount",
           "flightEnded",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "planChangedAt"
         ]
       },
       "CampaignPageDto": {
@@ -3452,7 +3504,12 @@
             ]
           },
           "cmsUploaded": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "A CMS_UPLOADED record exists that was recorded after planChangedAt."
+          },
+          "cmsUploadStale": {
+            "type": "boolean",
+            "description": "CMS_UPLOADED records exist, but none after planChangedAt (plan changed since)."
           }
         },
         "required": [
@@ -3474,7 +3531,8 @@
           "currentMultiplier",
           "weeklyWindowHours",
           "lastCmsOperation",
-          "cmsUploaded"
+          "cmsUploaded",
+          "cmsUploadStale"
         ]
       },
       "CreativeResponseDto": {
@@ -3545,7 +3603,8 @@
               "UPLOADED",
               "VALIDATING",
               "APPROVED",
-              "REJECTED"
+              "REJECTED",
+              "REVOKED"
             ]
           },
           "rejectionReason": {
@@ -3583,6 +3642,24 @@
             "format": "date-time",
             "nullable": true
           },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revokedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "revocationReason": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -3609,6 +3686,9 @@
           "uploadedBy",
           "approvedBy",
           "approvedAt",
+          "revokedAt",
+          "revokedBy",
+          "revocationReason",
           "createdAt"
         ]
       },
@@ -3719,6 +3799,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "planChangedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Server time of the last effective plan change; CMS_UPLOADED must be recorded after it."
+          },
           "notes": {
             "type": "string",
             "nullable": true
@@ -3778,6 +3863,7 @@
           "flightEnded",
           "createdAt",
           "updatedAt",
+          "planChangedAt",
           "notes",
           "maxPlayoutsPerHourPerScreen",
           "commercial",
@@ -3987,7 +4073,12 @@
             ]
           },
           "cmsUploaded": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "A CMS_UPLOADED record exists that was recorded after planChangedAt."
+          },
+          "cmsUploadStale": {
+            "type": "boolean",
+            "description": "CMS_UPLOADED records exist, but none after planChangedAt (plan changed since)."
           },
           "selected": {
             "type": "boolean"
@@ -4013,6 +4104,7 @@
           "weeklyWindowHours",
           "lastCmsOperation",
           "cmsUploaded",
+          "cmsUploadStale",
           "selected"
         ]
       },
@@ -4152,7 +4244,10 @@
               "RESOLUTION_MISMATCH",
               "NO_COMMERCIAL_TERMS",
               "UNAPPROVED_CREATIVES",
-              "FLIGHT_ENDED"
+              "FLIGHT_ENDED",
+              "FLIGHT_NOT_STARTED",
+              "CREATIVE_DURATION_UNKNOWN",
+              "REVOKED_CREATIVE"
             ]
           },
           "screens": {
@@ -4183,7 +4278,7 @@
             }
           },
           "missingCmsUpload": {
-            "description": "Active screens with no declared CMS_UPLOADED record; blocks LIVE.",
+            "description": "Active screens with no CMS_UPLOADED record recorded after planChangedAt; blocks LIVE.",
             "type": "array",
             "items": {
               "type": "string"
@@ -4346,7 +4441,8 @@
           "note": {
             "type": "string",
             "nullable": true,
-            "maxLength": 2000
+            "maxLength": 2000,
+            "description": "Required (non-empty) for NOTE."
           }
         },
         "required": [
@@ -4445,6 +4541,18 @@
         ]
       },
       "RejectCreativeDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "RevokeCreativeDto": {
         "type": "object",
         "properties": {
           "reason": {
