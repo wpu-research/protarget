@@ -7,8 +7,8 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'nav.settings.auditLog', href: '/admin/settings/audit-log' },
   { label: 'nav.inventory.venues', href: '/admin/inventory/venues' },
   { label: 'nav.inventory.screens', href: '/admin/inventory/screens' },
-  { label: 'nav.campaigns', href: '/admin/campaigns', future: true },
-  { label: 'nav.bookings', href: '/admin/bookings', future: true },
+  { label: 'nav.campaigns', href: '/admin/campaigns' },
+  { label: 'nav.campaigns.creatives', href: '/admin/creatives' },
   { label: 'nav.reports', href: '/admin/reporting', future: true },
 ];
 export const PORTAL_NAV: NavItem[] = [

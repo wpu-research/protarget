@@ -1,5 +1,11 @@
 import { Module } from '@nestjs/common';
+import { createStorage, OBJECT_STORAGE, storageConfig } from '../../common/storage/object-storage';
+import { CreativesController } from './creatives.controller';
+import { CreativesService } from './creatives.service';
 
-/** Faz 2 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+@Module({
+  controllers: [CreativesController],
+  providers: [CreativesService, { provide: OBJECT_STORAGE, useFactory: () => createStorage(storageConfig(process.env)) }],
+  exports: [CreativesService, OBJECT_STORAGE],
+})
 export class CreativesModule {}

@@ -1,5 +1,27 @@
 # Doğrulama kayıtları
 
+## Kampanya/booking — 11 Kasım 2026
+
+Branch: `story/campaign-booking`, `inceleme-temizlik` (`33462a7`) üzerinden.
+Yerel değişikliktir; **Railway'e yayın yapılmadı**, push/merge yok.
+Faz 0 kabulü ve ertelenen bulgular açık kalır.
+
+- Migration `20261111000000_campaign_booking` yalnız ekleme yapar. Envanter
+  story'sinin izole DB'lerinin kopyalarına (6 migration + veri) uygulandı;
+  gemi/ekran/çarpan/audit ve 8 eski kampanya satırı korundu.
+- Build 8/8, typecheck 11 görev, lint temiz.
+- **120 API unit + 2 web unit + 77 gerçek PostgreSQL integration + 36 Chromium E2E**
+  (11 Faz 0 + 19 envanter + 6 kampanya) geçti. Tümü Node 24.22.2 ile.
+- E2E: TR masaüstü ve EN 375 px mobilde oluştur → ekran → H.264 yükle/onayla →
+  plan → ticari/hedef → READY → CMS_UPLOADED → LIVE → PAUSED → COMPLETED;
+  roller için 403/401. `STORAGE_UNAVAILABLE` hata eşlemesi testi
+  araya girilmiş (intercepted) HTTP fikstürüdür ve öyle etiketlidir.
+- Ekran görüntüleri: `verification/2026-11-11-campaign-booking/`.
+- OpenAPI yeniden üretildi (18 yeni rota; mevcut rotalarda değişiklik yok).
+- **Çalıştırılamadı:** gerçek S3/bucket, Docker Compose `storage` profili,
+  ~200 MB gerçek yükleme ve web proxy'sinin 10 dk akış zaman aşımı.
+  S3 sürücüsü yalnız sahte istemciyle birim testinden geçti.
+
 ## Manuel envanter — 11 Kasım 2026 canlı pilot
 
 Kullanıcının açık yayın onayıyla `247aa02` Railway'e alındı.

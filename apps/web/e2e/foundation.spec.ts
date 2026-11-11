@@ -287,10 +287,10 @@ test('expired access cookie renews through HttpOnly refresh cookie, including tw
 });
 test('language switch, explicit future state and mobile layout', async ({ page }) => {
   await adminContext(page);
-  await page.goto('/admin/campaigns');
+  await page.goto('/admin/reporting');
   await expect(page.getByRole('heading', { name: 'Bu ekran henüz geliştirilmedi.', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Dili değiştir', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Campaigns', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Reports', exact: true })).toBeVisible();
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/admin');

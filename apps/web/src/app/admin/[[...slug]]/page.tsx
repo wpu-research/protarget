@@ -1,12 +1,31 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { t } from '@protarget/i18n';
-import type { AuditRecord, ManagedUser, Organization, PageResult, InventoryVenue, InventoryScreen, InventoryMultiplierHistory } from '@protarget/shared';
+import {
+  BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
+  type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory,
+} from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
+import { CampaignList } from '@/components/Campaigns';
+import { CampaignWizard } from '@/components/CampaignWizard';
+import { CampaignDetailView } from '@/components/CampaignDetail';
+import { Creatives } from '@/components/Creatives';
 import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory } from '@/components/Inventory';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
+/** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
+async function listAll<T>(path: string): Promise<T[]> {
+  const items: T[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const result = await serverApi<PageResult<T>>(`${path}${path.includes('?') ? '&' : '?'}page=${page}&pageSize=100`);
+    items.push(...result.items);
+    if (page * result.pageSize >= result.total) break;
+  }
+  return items;
+}
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export default async function AdminPage({ params, searchParams }: {
   params: Promise<{ slug?: string[] }>; searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
@@ -56,6 +75,53 @@ export default async function AdminPage({ params, searchParams }: {
     ]);
     return <>{heading(t('nav.inventory.screens', language))}
       <Screens data={data} venues={venues} selectedVenue={selectedVenue} filters={filters} /></>;
+  }
+  if (slug[0] === 'campaigns' || (slug[0] === 'creatives' && slug.length === 1)) {
+    const heading = (name: string) => <><p className="eyebrow">{t('booking.eyebrow', language)}</p><h1>{name}</h1>
+      <p className="page-description">{t(slug[0] === 'creatives' ? 'creative.description' : 'booking.description', language)}</p></>;
+    const orgs = await listAll<Organization>('/organizations');
+    const advertisers = orgs.filter(org => org.type === 'ADVERTISER').map(org => ({ id: org.id, name: org.name, type: org.type }));
+    const pageSize = typeof search.pageSize === 'string' && /^(?:[1-9]\d?|100)$/.test(search.pageSize) ? search.pageSize : '20';
+    const advertiserId = typeof search.advertiserId === 'string' && uuidPattern.test(search.advertiserId) ? search.advertiserId : undefined;
+    if (slug[0] === 'creatives') {
+      const status = typeof search.status === 'string' && ['UPLOADED', 'VALIDATING', 'APPROVED', 'REJECTED'].includes(search.status) ? search.status : undefined;
+      const query = new URLSearchParams({ page: String(page), pageSize });
+      if (advertiserId) query.set('advertiserId', advertiserId);
+      if (status) query.set('status', status);
+      return <>{heading(t('nav.campaigns.creatives', language))}
+        <Creatives data={await serverApi<CreativePage>(`/creatives?${query}`)}
+          advertisers={advertisers} uploadAdvertisers={orgs.filter(org => org.type === 'ADVERTISER' && org.active).map(org => ({ id: org.id, name: org.name, type: org.type }))}
+          filters={{ advertiserId, status, pageSize }} /></>;
+    }
+    const id = slug[1];
+    const wizardData = async () => {
+      const [users, venues] = await Promise.all([listAll<ManagedUser>('/users'), listAll<InventoryVenue>('/venues')]);
+      return {
+        advertisers: orgs.filter(org => org.type === 'ADVERTISER' && org.active).map(org => ({ id: org.id, name: org.name })),
+        agencies: orgs.filter(org => org.type === 'AGENCY' && org.active).map(org => ({ id: org.id, name: org.name })),
+        owners: users.filter(user => user.role === 'ADMIN' && user.active).map(user => ({ id: user.id, name: user.name })),
+        venues: venues.filter(venue => venue.active).map(venue => ({ id: venue.id, name: venue.name, city: venue.city })),
+      };
+    };
+    if (!id) {
+      const status = typeof search.status === 'string' && (BOOKING_STATUSES as readonly string[]).includes(search.status) ? search.status : undefined;
+      const text = typeof search.search === 'string' && search.search.trim() && search.search.length <= 100 ? search.search.trim() : undefined;
+      const query = new URLSearchParams({ page: String(page), pageSize });
+      if (status) query.set('status', status);
+      if (advertiserId) query.set('advertiserId', advertiserId);
+      if (text) query.set('search', text);
+      return <>{heading(t('nav.campaigns', language))}
+        <CampaignList data={await serverApi<CampaignPage>(`/campaigns?${query}`)} advertisers={advertisers}
+          filters={{ status, advertiserId, search: text, pageSize }} /></>;
+    }
+    if (id === 'new' && slug.length === 2) return <>{heading(t('booking.new', language))}<CampaignWizard key="new" {...await wizardData()} /></>;
+    if (!uuidPattern.test(id) || slug.length > 3 || (slug.length === 3 && slug[2] !== 'edit')) notFound();
+    const campaign = await serverApi<CampaignDetail>(`/campaigns/${id}`, true);
+    if (slug[2] === 'edit') {
+      if (!(BOOKING_PLAN_EDITABLE as readonly string[]).includes(campaign.status)) redirect(`/admin/campaigns/${id}`);
+      return <>{heading(`${campaign.code} · ${campaign.name}`)}<CampaignWizard key={id} initial={campaign} {...await wizardData()} /></>;
+    }
+    return <>{heading(`${campaign.code} · ${campaign.name}`)}<CampaignDetailView key={id} initial={campaign} /></>;
   }
   if (path === '/admin/organizations/agencies' || path === '/admin/organizations/advertisers') redirect('/admin/organizations');
   const title = findNavLabel(ADMIN_NAV, path);

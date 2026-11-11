@@ -955,6 +955,1130 @@
         ]
       }
     },
+    "/api/v1/campaigns": {
+      "get": {
+        "operationId": "CampaignsController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "DRAFT",
+                "READY",
+                "LIVE",
+                "PAUSED",
+                "COMPLETED",
+                "CANCELLED"
+              ]
+            }
+          },
+          {
+            "name": "advertiserId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "agencyId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      },
+      "post": {
+        "operationId": "CampaignsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}": {
+      "get": {
+        "operationId": "CampaignsController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      },
+      "patch": {
+        "operationId": "CampaignsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCampaignDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/archive": {
+      "post": {
+        "operationId": "CampaignsController_archive",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Soft-deletes a DRAFT booking."
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/screen-options": {
+      "get": {
+        "operationId": "CampaignsController_screenOptions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "venueId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "orientation",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "LANDSCAPE",
+                "PORTRAIT"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          },
+          {
+            "name": "selected",
+            "required": false,
+            "in": "query",
+            "description": "true: only screens already in the campaign.",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScreenOptionPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/screens": {
+      "post": {
+        "operationId": "CampaignsController_addScreens",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenIdsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/screens/remove": {
+      "post": {
+        "operationId": "CampaignsController_removeScreens",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScreenIdsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/creatives": {
+      "post": {
+        "operationId": "CampaignsController_linkCreative",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/creatives/remove": {
+      "post": {
+        "operationId": "CampaignsController_unlinkCreative",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreativeLinkDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/schedule": {
+      "post": {
+        "operationId": "CampaignsController_replaceSchedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceScheduleDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replaces all campaign-wide dayparts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/validation": {
+      "get": {
+        "operationId": "CampaignsController_validation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignValidationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/transitions": {
+      "post": {
+        "operationId": "CampaignsController_transition",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/cms-operations": {
+      "get": {
+        "operationId": "CampaignsController_cmsOperations",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "screenId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CmsOperationPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      },
+      "post": {
+        "operationId": "CampaignsController_recordCmsOperation",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCmsOperationDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Append-only operator declaration; not proof of playback.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CmsOperationDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/campaigns/{id}/activity": {
+      "get": {
+        "operationId": "CampaignsController_activity",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityPageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "campaigns"
+        ]
+      }
+    },
+    "/api/v1/creatives": {
+      "get": {
+        "operationId": "CreativesController_list",
+        "parameters": [
+          {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20,
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/Object"
+                }
+              ]
+            }
+          },
+          {
+            "name": "advertiserId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "UPLOADED",
+                "VALIDATING",
+                "APPROVED",
+                "REJECTED"
+              ]
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "maxLength": 100,
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativePageDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      },
+      "post": {
+        "operationId": "CreativesController_upload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file",
+                  "advertiserId"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "MP4 (H.264), PNG or JPEG; at most 200 MB."
+                  },
+                  "advertiserId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "displayDurationSeconds": {
+                    "type": "string",
+                    "description": "Images only, 1–300 seconds."
+                  },
+                  "replacesId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "VALIDATING when technically valid, REJECTED with reason otherwise.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      }
+    },
+    "/api/v1/creatives/{id}": {
+      "get": {
+        "operationId": "CreativesController_get",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      }
+    },
+    "/api/v1/creatives/{id}/file": {
+      "get": {
+        "operationId": "CreativesController_file",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Admin-only binary stream."
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      }
+    },
+    "/api/v1/creatives/{id}/approve": {
+      "post": {
+        "operationId": "CreativesController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      }
+    },
+    "/api/v1/creatives/{id}/reject": {
+      "post": {
+        "operationId": "CreativesController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectCreativeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "protarget_access": []
+          }
+        ],
+        "tags": [
+          "creatives"
+        ]
+      }
+    },
     "/api/v1/portal/organizations/{id}": {
       "get": {
         "operationId": "PortalController_organization",
@@ -1931,6 +3055,1406 @@
             "description": "Explicit earlier open whole-screen profile to close at the new start."
           }
         }
+      },
+      "OrgRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type"
+        ]
+      },
+      "UserRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "CampaignSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "READY_FOR_REVIEW",
+              "READY",
+              "LIVE",
+              "LIVE_WITH_EXTERNAL_ERROR",
+              "PAUSING",
+              "PAUSED",
+              "PAUSED_WITH_EXTERNAL_ERROR",
+              "RESUMING",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "advertiser": {
+            "$ref": "#/components/schemas/OrgRefDto"
+          },
+          "agency": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrgRefDto"
+              }
+            ]
+          },
+          "internalOwner": {
+            "$ref": "#/components/schemas/UserRefDto"
+          },
+          "startAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "primaryGoal": {
+            "type": "string",
+            "enum": [
+              "PLAYOUTS",
+              "IMPRESSIONS"
+            ],
+            "nullable": true
+          },
+          "targetPlayouts": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetImpressions": {
+            "type": "string",
+            "nullable": true
+          },
+          "screenCount": {
+            "type": "integer"
+          },
+          "creativeCount": {
+            "type": "integer"
+          },
+          "flightEnded": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status",
+          "advertiser",
+          "agency",
+          "internalOwner",
+          "startAt",
+          "endAt",
+          "timezone",
+          "primaryGoal",
+          "targetPlayouts",
+          "targetImpressions",
+          "screenCount",
+          "creativeCount",
+          "flightEnded",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CampaignPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignSummaryDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "CreateCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 150
+          },
+          "advertiserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "agencyId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "internalOwnerId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Active ADMIN user owning the booking internally."
+          },
+          "startAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string",
+            "example": "Europe/Istanbul"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "name",
+          "advertiserId",
+          "internalOwnerId",
+          "startAt",
+          "endAt",
+          "timezone"
+        ]
+      },
+      "CommercialDto": {
+        "type": "object",
+        "properties": {
+          "pricingModel": {
+            "type": "string",
+            "enum": [
+              "CPM",
+              "CPP",
+              "FIXED",
+              "PG"
+            ],
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "TRY",
+              "USD"
+            ]
+          },
+          "unitPrice": {
+            "type": "string",
+            "nullable": true
+          },
+          "budget": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractedAmount": {
+            "type": "string",
+            "nullable": true
+          },
+          "guaranteedImpressions": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractedQuantity": {
+            "type": "string",
+            "nullable": true
+          },
+          "overdeliveryTolerancePct": {
+            "type": "string"
+          },
+          "pgBillingBasis": {
+            "type": "string",
+            "enum": [
+              "CONTRACTED",
+              "DELIVERED"
+            ]
+          },
+          "publisherSharePct": {
+            "type": "string",
+            "nullable": true
+          },
+          "protargetSharePct": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "pricingModel",
+          "currency",
+          "unitPrice",
+          "budget",
+          "contractedAmount",
+          "guaranteedImpressions",
+          "contractedQuantity",
+          "overdeliveryTolerancePct",
+          "pgBillingBasis",
+          "publisherSharePct",
+          "protargetSharePct"
+        ]
+      },
+      "CmsLastOperationDto": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "CMS_UPLOADED",
+              "PLAYBACK_STARTED",
+              "PLAYBACK_PAUSED",
+              "PLAYBACK_RESUMED",
+              "PLAYBACK_STOPPED",
+              "NOTE"
+            ]
+          },
+          "performedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "type",
+          "performedAt"
+        ]
+      },
+      "CampaignScreenDto": {
+        "type": "object",
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "venueActive": {
+            "type": "boolean"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "resolutionWidth": {
+            "type": "integer",
+            "nullable": true
+          },
+          "resolutionHeight": {
+            "type": "integer",
+            "nullable": true
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "LANDSCAPE",
+              "PORTRAIT"
+            ],
+            "nullable": true
+          },
+          "operatingStart": {
+            "type": "string",
+            "nullable": true
+          },
+          "operatingEnd": {
+            "type": "string",
+            "nullable": true
+          },
+          "loopLengthSec": {
+            "type": "integer",
+            "nullable": true
+          },
+          "defaultSlotLengthSec": {
+            "type": "integer",
+            "nullable": true
+          },
+          "currentMultiplier": {
+            "type": "string",
+            "nullable": true
+          },
+          "weeklyWindowHours": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastCmsOperation": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CmsLastOperationDto"
+              }
+            ]
+          },
+          "cmsUploaded": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "screenId",
+          "code",
+          "name",
+          "venueName",
+          "city",
+          "active",
+          "venueActive",
+          "timezone",
+          "resolutionWidth",
+          "resolutionHeight",
+          "orientation",
+          "operatingStart",
+          "operatingEnd",
+          "loopLengthSec",
+          "defaultSlotLengthSec",
+          "currentMultiplier",
+          "weeklyWindowHours",
+          "lastCmsOperation",
+          "cmsUploaded"
+        ]
+      },
+      "CreativeResponseDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "advertiserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "originalFilename": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string",
+            "enum": [
+              "video/mp4",
+              "image/png",
+              "image/jpeg",
+              "application/octet-stream"
+            ]
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "VIDEO",
+              "IMAGE"
+            ],
+            "nullable": true
+          },
+          "durationSeconds": {
+            "type": "string",
+            "nullable": true,
+            "example": "15.000"
+          },
+          "durationManual": {
+            "type": "boolean"
+          },
+          "width": {
+            "type": "integer",
+            "nullable": true
+          },
+          "height": {
+            "type": "integer",
+            "nullable": true
+          },
+          "sizeBytes": {
+            "type": "string",
+            "nullable": true
+          },
+          "checksum": {
+            "type": "string",
+            "nullable": true
+          },
+          "videoCodec": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "UPLOADED",
+              "VALIDATING",
+              "APPROVED",
+              "REJECTED"
+            ]
+          },
+          "rejectionReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "integer"
+          },
+          "replacesId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "uploadedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "approvedBy": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "approvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "advertiserId",
+          "originalFilename",
+          "mime",
+          "kind",
+          "durationSeconds",
+          "durationManual",
+          "width",
+          "height",
+          "sizeBytes",
+          "checksum",
+          "videoCodec",
+          "status",
+          "rejectionReason",
+          "version",
+          "replacesId",
+          "uploadedBy",
+          "approvedBy",
+          "approvedAt",
+          "createdAt"
+        ]
+      },
+      "ScheduleSlotResponseDto": {
+        "type": "object",
+        "properties": {
+          "dayOfWeek": {
+            "type": "integer"
+          },
+          "startTime": {
+            "type": "string"
+          },
+          "endTime": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "dayOfWeek",
+          "startTime",
+          "endTime"
+        ]
+      },
+      "CampaignDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "READY_FOR_REVIEW",
+              "READY",
+              "LIVE",
+              "LIVE_WITH_EXTERNAL_ERROR",
+              "PAUSING",
+              "PAUSED",
+              "PAUSED_WITH_EXTERNAL_ERROR",
+              "RESUMING",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "advertiser": {
+            "$ref": "#/components/schemas/OrgRefDto"
+          },
+          "agency": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/OrgRefDto"
+              }
+            ]
+          },
+          "internalOwner": {
+            "$ref": "#/components/schemas/UserRefDto"
+          },
+          "startAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "primaryGoal": {
+            "type": "string",
+            "enum": [
+              "PLAYOUTS",
+              "IMPRESSIONS"
+            ],
+            "nullable": true
+          },
+          "targetPlayouts": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetImpressions": {
+            "type": "string",
+            "nullable": true
+          },
+          "screenCount": {
+            "type": "integer"
+          },
+          "creativeCount": {
+            "type": "integer"
+          },
+          "flightEnded": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true
+          },
+          "maxPlayoutsPerHourPerScreen": {
+            "type": "integer",
+            "nullable": true
+          },
+          "commercial": {
+            "$ref": "#/components/schemas/CommercialDto"
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampaignScreenDto"
+            }
+          },
+          "creatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreativeResponseDto"
+            }
+          },
+          "schedule": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleSlotResponseDto"
+            }
+          },
+          "launchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "name",
+          "status",
+          "advertiser",
+          "agency",
+          "internalOwner",
+          "startAt",
+          "endAt",
+          "timezone",
+          "primaryGoal",
+          "targetPlayouts",
+          "targetImpressions",
+          "screenCount",
+          "creativeCount",
+          "flightEnded",
+          "createdAt",
+          "updatedAt",
+          "notes",
+          "maxPlayoutsPerHourPerScreen",
+          "commercial",
+          "screens",
+          "creatives",
+          "schedule",
+          "launchedAt",
+          "completedAt"
+        ]
+      },
+      "UpdateCampaignDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 150
+          },
+          "advertiserId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "agencyId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "internalOwnerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "startAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
+          },
+          "primaryGoal": {
+            "type": "string",
+            "enum": [
+              "PLAYOUTS",
+              "IMPRESSIONS"
+            ],
+            "nullable": true
+          },
+          "targetPlayouts": {
+            "type": "string",
+            "nullable": true,
+            "example": "12000"
+          },
+          "targetImpressions": {
+            "type": "string",
+            "nullable": true,
+            "example": "250000"
+          },
+          "maxPlayoutsPerHourPerScreen": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 1,
+            "maximum": 3600,
+            "description": "Planned frequency; informational for manual CMS entry."
+          },
+          "pricingModel": {
+            "type": "string",
+            "enum": [
+              "CPM",
+              "CPP",
+              "FIXED",
+              "PG"
+            ],
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "TRY",
+              "USD"
+            ]
+          },
+          "unitPrice": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.5000"
+          },
+          "budget": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractedAmount": {
+            "type": "string",
+            "nullable": true
+          },
+          "guaranteedImpressions": {
+            "type": "string",
+            "nullable": true
+          },
+          "contractedQuantity": {
+            "type": "string",
+            "nullable": true
+          },
+          "overdeliveryTolerancePct": {
+            "type": "string",
+            "example": "1.00"
+          },
+          "pgBillingBasis": {
+            "type": "string",
+            "enum": [
+              "CONTRACTED",
+              "DELIVERED"
+            ]
+          },
+          "publisherSharePct": {
+            "type": "string",
+            "nullable": true
+          },
+          "protargetSharePct": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ScreenOptionDto": {
+        "type": "object",
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "venueActive": {
+            "type": "boolean"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "resolutionWidth": {
+            "type": "integer",
+            "nullable": true
+          },
+          "resolutionHeight": {
+            "type": "integer",
+            "nullable": true
+          },
+          "orientation": {
+            "type": "string",
+            "enum": [
+              "LANDSCAPE",
+              "PORTRAIT"
+            ],
+            "nullable": true
+          },
+          "operatingStart": {
+            "type": "string",
+            "nullable": true
+          },
+          "operatingEnd": {
+            "type": "string",
+            "nullable": true
+          },
+          "loopLengthSec": {
+            "type": "integer",
+            "nullable": true
+          },
+          "defaultSlotLengthSec": {
+            "type": "integer",
+            "nullable": true
+          },
+          "currentMultiplier": {
+            "type": "string",
+            "nullable": true
+          },
+          "weeklyWindowHours": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastCmsOperation": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CmsLastOperationDto"
+              }
+            ]
+          },
+          "cmsUploaded": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "screenId",
+          "code",
+          "name",
+          "venueName",
+          "city",
+          "active",
+          "venueActive",
+          "timezone",
+          "resolutionWidth",
+          "resolutionHeight",
+          "orientation",
+          "operatingStart",
+          "operatingEnd",
+          "loopLengthSec",
+          "defaultSlotLengthSec",
+          "currentMultiplier",
+          "weeklyWindowHours",
+          "lastCmsOperation",
+          "cmsUploaded",
+          "selected"
+        ]
+      },
+      "ScreenOptionPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScreenOptionDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "ScreenIdsDto": {
+        "type": "object",
+        "properties": {
+          "screenIds": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        "required": [
+          "screenIds"
+        ]
+      },
+      "CreativeLinkDto": {
+        "type": "object",
+        "properties": {
+          "creativeId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "creativeId"
+        ]
+      },
+      "ScheduleSlotDto": {
+        "type": "object",
+        "properties": {
+          "dayOfWeek": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 7,
+            "description": "ISO weekday, 1 = Monday."
+          },
+          "startTime": {
+            "type": "string",
+            "example": "08:00"
+          },
+          "endTime": {
+            "type": "string",
+            "example": "22:00",
+            "description": "May be earlier than startTime (overnight); must differ."
+          }
+        },
+        "required": [
+          "dayOfWeek",
+          "startTime",
+          "endTime"
+        ]
+      },
+      "ReplaceScheduleDto": {
+        "type": "object",
+        "properties": {
+          "slots": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ScheduleSlotDto"
+            }
+          }
+        },
+        "required": [
+          "slots"
+        ]
+      },
+      "BlockerDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "NO_SCREENS",
+              "INACTIVE_SCREENS",
+              "NO_APPROVED_CREATIVE",
+              "INVALID_FLIGHT",
+              "NO_GOAL",
+              "NO_SCHEDULE",
+              "MISSING_MULTIPLIER",
+              "NO_PLAYBACK_WINDOW",
+              "CREATIVE_TOO_LONG",
+              "INVALID_COMMERCIAL"
+            ]
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "screens"
+        ]
+      },
+      "WarningDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "OPERATING_HOURS_UNKNOWN",
+              "TIMEZONE_MISMATCH",
+              "SLOT_LENGTH_UNKNOWN",
+              "RESOLUTION_MISMATCH",
+              "NO_COMMERCIAL_TERMS",
+              "UNAPPROVED_CREATIVES",
+              "FLIGHT_ENDED"
+            ]
+          },
+          "screens": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "code",
+          "screens"
+        ]
+      },
+      "CampaignValidationDto": {
+        "type": "object",
+        "properties": {
+          "blockers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockerDto"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WarningDto"
+            }
+          },
+          "missingCmsUpload": {
+            "description": "Active screens with no declared CMS_UPLOADED record; blocks LIVE.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "checkedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "blockers",
+          "warnings",
+          "missingCmsUpload",
+          "checkedAt"
+        ]
+      },
+      "TransitionDto": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": [
+              "DRAFT",
+              "READY",
+              "LIVE",
+              "PAUSED",
+              "COMPLETED",
+              "CANCELLED"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "to"
+        ]
+      },
+      "CmsOperationDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screenId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "screenCode": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CMS_UPLOADED",
+              "PLAYBACK_STARTED",
+              "PLAYBACK_PAUSED",
+              "PLAYBACK_RESUMED",
+              "PLAYBACK_STOPPED",
+              "NOTE"
+            ]
+          },
+          "performedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "actor": {
+            "$ref": "#/components/schemas/UserRefDto"
+          },
+          "cmsReference": {
+            "type": "string",
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "OPERATOR_DECLARED"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "screenId",
+          "screenCode",
+          "type",
+          "performedAt",
+          "recordedAt",
+          "actor",
+          "cmsReference",
+          "note",
+          "source"
+        ]
+      },
+      "CmsOperationPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CmsOperationDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "CreateCmsOperationDto": {
+        "type": "object",
+        "properties": {
+          "screenId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Screen UUID that is part of the campaign."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "CMS_UPLOADED",
+              "PLAYBACK_STARTED",
+              "PLAYBACK_PAUSED",
+              "PLAYBACK_RESUMED",
+              "PLAYBACK_STOPPED",
+              "NOTE"
+            ]
+          },
+          "performedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the operator performed it in the CMS; not in the future."
+          },
+          "cmsReference": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 300
+          },
+          "note": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "screenId",
+          "type",
+          "performedAt"
+        ]
+      },
+      "ActivityItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "user": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UserRefDto"
+              }
+            ]
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "user",
+          "timestamp",
+          "metadata"
+        ]
+      },
+      "ActivityPageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ActivityItemDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "CreativePageDto": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreativeResponseDto"
+            }
+          },
+          "total": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ]
+      },
+      "RejectCreativeDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          }
+        },
+        "required": [
+          "reason"
+        ]
       }
     }
   }

@@ -27,6 +27,10 @@ export type ApiErrorCode =
   | 'MAPPING_ERROR'
   | 'RATE_LIMITED'
   | 'INVITATIONS_DISABLED'
+  | 'PAYLOAD_TOO_LARGE'
+  | 'STORAGE_UNAVAILABLE'
+  | 'DUPLICATE_CREATIVE'
+  | 'CAMPAIGN_NOT_READY'
   | 'INTERNAL_ERROR';
 
 /** Spec v2 §33 standart hata zarfı. */

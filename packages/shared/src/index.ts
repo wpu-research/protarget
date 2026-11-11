@@ -4,3 +4,4 @@ export * from './settings';
 export * from './queues';
 export * from './foundation';
 export * from './inventory';
+export * from './campaigns';

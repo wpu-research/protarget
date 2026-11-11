@@ -7,6 +7,12 @@ gemi/ekran, çarpan ve TR/EN/mobil kontrolleri geçti. Yayın kanıtı:
 `docs/RAILWAY_DEPLOYMENT.md`. Faz 0'ın Compose kabulü ve ertelenen işleri
 açık kalır; tam üretim kabulü sayılmaz.
 
+**Kampanya/booking (yerel, `story/campaign-booking`, yayımlanmadı):** yalnız
+admin için booking sihirbazı, kreatif yükleme (MP4/H.264, PNG, JPEG; ffprobe +
+sha256 + ayrı onay), ekran/tarih/hedef/ticari plan, sade durum makinesi ve
+salt eklenen CMS işlem kaydı. Durumlar ve CMS kayıtları operatör beyanıdır,
+oynatma kanıtı değildir. Ayrıntılar: `docs/CAMPAIGNS.md`.
+
 ## Ürün kapsamı
 
 Güncel kararlar: `docs/MVP_DECISIONS.md`.
@@ -14,7 +20,7 @@ Güncel kararlar: `docs/MVP_DECISIONS.md`.
 MVP, mevcut CMS'ye operatörün manuel yükleme yapacağı kampanya/booking
 operasyonunu hedefler. Gerçek DSP/SSP, otomatik CMS bağlantısı ve kendi
 player'ımız ilk sürüm şartı değildir. Bunlar **bu Faz 0 teslimatında uygulanmadı**.
-Kampanya, booking ve rapor menüleri açıkça “Planlandı” durumundadır; sahte
+Teslimat ve rapor menüleri açıkça “Planlandı” durumundadır; sahte
 teslimat veya kampanya istatistiği gösterilmez. Gemi/ekran ve çarpan
 ekranları kullanılabilir; ayrıntılar `docs/INVENTORY.md` içindedir.
 
@@ -123,13 +129,15 @@ pnpm local openapi
 
 ## Kapsam dışı / sınırlamalar
 
-- Campaign/player/worker/connector şemaları iskeletten korunmuştur; bu teslimat
-  bunların iş akışlarını devreye almaz. Worker/player servislerini çalıştırmayın.
+- Player/worker/connector/deal şemaları iskeletten korunmuştur; bu teslimat
+  bunların iş akışlarını devreye almaz. Kampanya modülü yalnız manuel booking
+  akışını uygular (`docs/CAMPAIGNS.md`). Worker/player servislerini çalıştırmayın.
 - Envanterde pasifleştirme fiziksel ekranı durdurmaz. CMS/OS metadata'sı
   bağlantı veya oynatma kanıtı değildir. Manuel çarpan ve yönetici onayı,
   doğrulanmış izleyici sayısı ya da proof-of-play anlamına gelmez.
 - Support yalnız `/me` ve `/health`; ajans/marka yalnız kendi kurumunu okur.
-- Finansal görünürlük tercihleri kaydedilir; henüz finansal rapor/API yoktur.
+- Finansal görünürlük tercihleri kaydedilir; kampanya ticari alanları yalnız
+  admin API'sinde döner, spend hesaplanmaz ve finansal rapor yoktur.
 - MFA sonraki güvenlik fazında; MFA etkin hesaplar mevcut girişten reddedilir.
 - İstemci IP'si yalnız Railway ingress'i arkasında güvenilirdir: web geçidi
   `X-Real-IP` değerini `PROXY_SHARED_SECRET` ile imzalar, API imzasız başlığı

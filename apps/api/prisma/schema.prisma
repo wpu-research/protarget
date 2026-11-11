@@ -88,6 +88,22 @@ enum CampaignStatus {
   CANCELLED
 }
 
+/// Booking'in birincil hedef birimi; ikisi aynı ölçü değildir.
+enum CampaignGoal {
+  PLAYOUTS
+  IMPRESSIONS
+}
+
+/// Operatörün mevcut CMS'de yaptığını beyan ettiği işlem (oynatma kanıtı değildir).
+enum CmsOperationType {
+  CMS_UPLOADED
+  PLAYBACK_STARTED
+  PLAYBACK_PAUSED
+  PLAYBACK_RESUMED
+  PLAYBACK_STOPPED
+  NOTE
+}
+
 enum PricingModel {
   CPM
   CPP
@@ -202,6 +218,9 @@ model User {
   sessions            Session[]
   invitations         Invitation[]
   ownedCampaigns      Campaign[]           @relation("CampaignOwner")
+  uploadedCreatives   Creative[]           @relation("CreativeUploader")
+  approvedCreatives   Creative[]           @relation("CreativeApprover")
+  cmsOperations       CampaignCmsOperation[]
   auditLogs           AuditLog[]
   campaignPermissions CampaignPermission[]
 
@@ -357,6 +376,7 @@ model Screen {
   proofsOfPlay      ProofOfPlay[]
   playerErrors      PlayerErrorLog[]
   dailyDelivery     DailyCampaignScreenDelivery[]
+  cmsOperations     CampaignCmsOperation[]
 
   @@index([venueId])
   @@map("screens")
@@ -456,12 +476,23 @@ model Creative {
   checksum         String?
   status           CreativeStatus @default(UPLOADED)
   rejectionReason  String?
+  /// ffprobe'un ölçtüğü video codec'i (görsellerde null)
+  videoCodec       String?
+  /// Görsel kreatiflerde süre ölçülemez; admin elle girer
+  durationManual   Boolean        @default(false)
   version          Int            @default(1)
   replacesId       String?        @db.Uuid
+  uploadedById     String?        @db.Uuid
+  approvedById     String?        @db.Uuid
+  approvedAt       DateTime?      @db.Timestamptz
   createdAt        DateTime       @default(now()) @db.Timestamptz
   updatedAt        DateTime       @updatedAt @db.Timestamptz
 
   advertiser        Organization       @relation(fields: [advertiserId], references: [id])
+  uploadedBy        User?              @relation("CreativeUploader", fields: [uploadedById], references: [id])
+  approvedBy        User?              @relation("CreativeApprover", fields: [approvedById], references: [id])
+  replaces          Creative?          @relation("CreativeVersions", fields: [replacesId], references: [id])
+  replacedBy        Creative[]         @relation("CreativeVersions")
   campaignCreatives CampaignCreative[]
 
   @@index([advertiserId])
@@ -489,6 +520,8 @@ model Campaign {
   /// PG'de impression garantisi yerine sözleşmeli sabit teslimat miktarı
   contractedQuantity          BigInt?
   targetPlayouts              BigInt?
+  targetImpressions           BigInt?
+  primaryGoal                 CampaignGoal?
   overdeliveryTolerancePct    Decimal           @default(1) @db.Decimal(5, 2)
   pgBillingBasis              PgBillingBasis    @default(CONTRACTED)
   publisherSharePct           Decimal?          @db.Decimal(5, 2)
@@ -518,6 +551,7 @@ model Campaign {
   deals          Deal[]
   permissions    CampaignPermission[]
   dailyDelivery  DailyCampaignScreenDelivery[]
+  cmsOperations  CampaignCmsOperation[]
 
   @@index([advertiserId])
   @@index([agencyId])
@@ -811,4 +845,25 @@ model DailyCampaignScreenDelivery {
 
   @@id([date, campaignId, screenId])
   @@map("daily_campaign_screen_delivery")
+}
+
+/// Salt eklenir (DB trigger). Operatör beyanıdır; PoP veya doğrulanmış yayın değildir.
+model CampaignCmsOperation {
+  id           String           @id @default(uuid()) @db.Uuid
+  campaignId   String           @db.Uuid
+  screenId     String           @db.Uuid
+  type         CmsOperationType
+  /// Operatörün CMS'de işlemi yaptığını beyan ettiği an (UTC)
+  performedAt  DateTime         @db.Timestamptz
+  recordedAt   DateTime         @default(now()) @db.Timestamptz
+  actorId      String           @db.Uuid
+  cmsReference String?
+  note         String?
+
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  screen   Screen   @relation(fields: [screenId], references: [id])
+  actor    User     @relation(fields: [actorId], references: [id])
+
+  @@index([campaignId, screenId, performedAt])
+  @@map("campaign_cms_operations")
 }

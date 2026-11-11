@@ -491,7 +491,7 @@ test('inventory discovery is live, future modules remain planned, and invalid/mi
   await expect(navigation.getByRole('link', { name: en['nav.inventory.venues'], exact: true })).toBeVisible();
   await expect(navigation.getByRole('link', { name: en['nav.inventory.screens'], exact: true })).toBeVisible();
   await expect(page.getByText(en['dashboard.foundationDescription'], { exact: true })).toBeVisible();
-  await page.goto('/admin/campaigns');
+  await page.goto('/admin/reporting');
   await expect(page.getByRole('heading', { name: en['common.notImplemented'], exact: true })).toBeVisible();
   for (const path of [`${root}/screens/not-a-uuid`, `${root}/screens/${randomUUID()}`, `${root}/venues/${randomUUID()}`, `${root}/venues/${randomUUID()}/multipliers`]) {
     const response = await page.goto(path);

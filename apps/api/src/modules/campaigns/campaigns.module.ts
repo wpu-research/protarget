@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-
-/** Faz 2 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+import { CampaignsController } from './campaigns.controller';
+import { CampaignsService } from './campaigns.service';
+@Module({ controllers: [CampaignsController], providers: [CampaignsService] })
 export class CampaignsModule {}

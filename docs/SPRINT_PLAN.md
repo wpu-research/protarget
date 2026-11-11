@@ -13,7 +13,9 @@ manuel CMS kararı sonrası zorunlu olmayan player/programatik işleri ayrı tut
    Railway pilotuna yayımlandı ve canlı smoke geçti. Donanım/OS uyumluluğunu
    keşfetmeden player kurulumu taahhüdü yok.
 3. **Kampanya/booking:** ajans/marka ilişkisi, kreatif, ekran/tarih/hedef,
-   CMS'ye manuel aktarım checklist'i ve operatör işlem kayıtları.
+   CMS'ye manuel aktarım checklist'i ve operatör işlem kayıtları. 11 Kasım 2026:
+   yalnız admin için yerel olarak uygulandı (`docs/CAMPAIGNS.md`); durum `review`,
+   CR yapılmadı, yayımlanmadı. Ajans/marka görünürlüğü madde 5'te.
 4. **Teslimat:** manuel beyan, doğrulanmış CMS import'u, kaynak/doğrulama
    etiketleri, tekilleştirme ve audit'li düzeltmeler. Hedef/gerçekleşen ayrımı.
 5. **Müşteri raporu:** yalnız yetkili kampanyalar; ekran/tarih, delivery/pacing,
