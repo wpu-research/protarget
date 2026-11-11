@@ -25,6 +25,8 @@ export function uploadCreative(form: FormData, onProgress: (percent: number) => 
     const done = () => signal?.removeEventListener('abort', abort);
     request.open('POST', '/api/v1/creatives');
     request.responseType = 'text';
+    // Longer than the proxy's own 10 minute cap: a stalled connection ends as an error instead of an endless spinner.
+    request.timeout = 12 * 60 * 1000;
     request.upload.onprogress = event => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); };
     request.onerror = () => { done(); reject(new RequestError('SERVICE_UNAVAILABLE', 0)); };
     request.ontimeout = () => { done(); reject(new RequestError('SERVICE_UNAVAILABLE', 0)); };
@@ -58,7 +60,8 @@ export function uploadCreative(form: FormData, onProgress: (percent: number) => 
       const error = (result.body as { error?: { code?: string; message?: string; details?: Record<string, unknown> } } | null)?.error;
       throw new RequestError(error?.code ?? (result.status === 413 ? 'PAYLOAD_TOO_LARGE' : 'SERVICE_UNAVAILABLE'), result.status, error?.details ?? {}, error?.message ?? '');
     }
-    if (!isCreative(result.body)) throw new RequestError('SERVICE_UNAVAILABLE', result.status);
+    // 2xx but unreadable body: the record may exist, so do not invite a blind retry.
+    if (!isCreative(result.body)) throw new RequestError('UPLOAD_UNCONFIRMED', result.status);
     onProgress(100);
     return result.body;
   })();

@@ -395,17 +395,17 @@ export class CampaignsService {
     return inventoryTransaction(this.db, async tx => {
       await this.sessions.requireAdmin(tx, actor);
       const row = await this.load(tx, id);
-      if (dto.type === 'NOTE' && !dto.note) throw invalid('A note requires non-empty text');
+      if (dto.type === 'NOTE' && !dto.note) throw new ApiError(400, 'VALIDATION_FAILED', 'A note requires non-empty text', { reason: 'NOTE_REQUIRED' });
       const cmsStatuses: string[] = ['READY', 'LIVE', 'PAUSED'];
       if (!cmsStatuses.includes(row.status) && !(dto.type === 'NOTE' && row.status === 'DRAFT')) {
-        throw conflict('CMS operations can only be recorded for a ready, live or paused booking (notes also in draft)');
+        throw new ApiError(409, 'INVALID_STATE_TRANSITION', 'CMS operations can only be recorded for a ready, live or paused booking (notes also in draft)', { reason: 'CMS_STATUS_NOT_ALLOWED' });
       }
       const performedAt = new Date(dto.performedAt);
       const now = new Date();
-      if (performedAt.getTime() > now.getTime() + 60_000) throw invalid('performedAt cannot be in the future');
-      if (performedAt < row.createdAt) throw invalid('performedAt cannot precede the booking');
+      if (performedAt.getTime() > now.getTime() + 60_000) throw new ApiError(400, 'VALIDATION_FAILED', 'performedAt cannot be in the future', { reason: 'PERFORMED_IN_FUTURE' });
+      if (performedAt < row.createdAt) throw new ApiError(400, 'VALIDATION_FAILED', 'performedAt cannot precede the booking', { reason: 'PERFORMED_BEFORE_BOOKING' });
       const link = await tx.campaignScreen.findUnique({ where: { campaignId_screenId: { campaignId: id, screenId: dto.screenId } } });
-      if (!link) throw invalid('The screen is not part of this booking');
+      if (!link) throw new ApiError(400, 'VALIDATION_FAILED', 'The screen is not part of this booking', { reason: 'SCREEN_NOT_IN_BOOKING' });
       const created = await tx.campaignCmsOperation.create({ data: {
         campaignId: id, screenId: dto.screenId, type: dto.type, performedAt, recordedAt: now, actorId: actor.user.id,
         cmsReference: dto.cmsReference ?? null, note: dto.note ?? null,
@@ -503,7 +503,7 @@ export class CampaignsService {
     const ids = screens.map(screen => screen.id);
     const [multipliers, lastOps, uploads, anyUploads] = await Promise.all([
       this.currentMultipliers(tx, ids, campaign.startAt),
-      tx.campaignCmsOperation.findMany({ where: { campaignId: campaign.id, screenId: { in: ids } }, distinct: ['screenId'],
+      tx.campaignCmsOperation.findMany({ where: { campaignId: campaign.id, screenId: { in: ids }, type: { not: 'NOTE' } }, distinct: ['screenId'],
         orderBy: [{ screenId: 'asc' }, { performedAt: 'desc' }, { recordedAt: 'desc' }], select: { screenId: true, type: true, performedAt: true } }),
       tx.campaignCmsOperation.findMany({ where: { campaignId: campaign.id, screenId: { in: ids }, type: 'CMS_UPLOADED',
         recordedAt: { gte: campaign.planChangedAt } }, distinct: ['screenId'], select: { screenId: true } }),

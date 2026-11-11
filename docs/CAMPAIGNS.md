@@ -34,7 +34,12 @@ ajans/marka portal görünürlüğü sonraki story'lerdedir.
    Onaylı kreatifin dosyası/metadata'sı değişmez; yeni sürüm `replacesId` ile.
    Aynı reklamverende reddedilmemiş aynı dosya ikinci kez yüklenemez (409;
    reddedilen dosya yeniden denenebilir). Onaylı kreatif gerekçeyle geri
-   çekilebilir (`REVOKED`); bağlı READY booking DRAFT'a döner. Antivirüs yok.
+   çekilebilir (`REVOKED`, terminal): bağlı READY booking DRAFT'a döner;
+   LIVE/PAUSED booking'de `REVOKED_CREATIVE` uyarısı çıkar ve geri çekilen
+   kreatif plan kilidine rağmen çözülebilir. Geri çekilen içerik aynı
+   reklamverene yeniden yüklenemez (409 `DUPLICATE_CREATIVE`, ayrı mesajla).
+   Kabul edilen konteyner: ISO MP4 (QuickTime `qt` ve 3GP ailesi reddedilir).
+   Antivirüs yok.
 5. **Yayın planı:** kampanya geneli gün/saat dilimleri; gece yarısını aşan
    dilim izinli, aynı anda çakışan dilim reddedilir.
 6. **Özet ve hazırlık:** `GET /campaigns/:id/validation` engelleri ve
@@ -45,7 +50,10 @@ ajans/marka portal görünürlüğü sonraki story'lerdedir.
 `DRAFT → READY → LIVE ⇄ PAUSED → COMPLETED`; `DRAFT/READY/PAUSED → CANCELLED`.
 READY iken plan değişirse kayıt otomatik DRAFT'a döner (audit'te
 `automatic: true`). `LIVE` için her aktif ekranda `CMS_UPLOADED` beyanı
-gerekir. Pause/resume/iptal gerekçe ister. LIVE/PAUSED iken yalnız not ve
+gerekir; bu beyan yalnız son etkin plan değişikliğinden (`planChangedAt`)
+sonra sunucuya kaydedilmişse sayılır (ekran/kreatif/plan/gün-saat değişikliği
+veya LIVE/PAUSED'da bitişi uzatmak kanıtı eskitir; yeniden beyan gerekir).
+El ile READY→DRAFT geçişi izinlidir. Pause/resume/iptal gerekçe ister. LIVE/PAUSED iken yalnız not ve
 bitişi ileri uzatma; COMPLETED/CANCELLED salt okunur. Bitiş geçince otomatik
 tamamlama yoktur, listede “Bitiş geçti” görünür. Eski şemadaki diğer durumlar
 (ör. `READY_FOR_REVIEW`, `PAUSING`) bu akışta geçiş yapamaz (409).
@@ -55,17 +63,23 @@ tamamlama yoktur, listede “Bitiş geçti” görünür. Eski şemadaki diğer 
 `campaign_cms_operations` salt eklenir (UPDATE/DELETE/TRUNCATE trigger ve
 uygulama rolü yetkisiyle engelli). Türler: `CMS_UPLOADED`,
 `PLAYBACK_STARTED/PAUSED/RESUMED/STOPPED`, `NOTE`. Zaman geleceğe veya
-kampanyadan önceye yazılamaz; yalnız kampanyadaki ekran için yazılır.
+kampanyadan önceye yazılamaz (`performedAt` için 60 sn istemci saat toleransı);
+yalnız kampanyadaki ekran için yazılır. CMS işlemi yalnız READY/LIVE/PAUSED
+booking'de kaydedilir (`NOTE` ayrıca DRAFT'ta); COMPLETED/CANCELLED salt okunur.
+Hata yanıtları `details.reason` kodu taşır.
 Düzeltme yeni kayıtla yapılır. LIVE/PAUSED geçişinde son beyanı uyuşmayan
 ekranlar audit'e uyarı olarak yazılır.
+
+`maxPlayoutsPerHourPerScreen` yalnız bilgi amaçlı plan frekansıdır; kapasite
+hesabına girmez. Reddedilen (`REJECTED`) kreatifler mükerrer sayılmaz.
 
 ## Depolama yapılandırması
 
 | Değişken | Anlam |
 |---|---|
-| `STORAGE_DRIVER` | `local` veya `s3`. Boşsa üretim dışında OS geçici dizini; **üretimde yükleme kapalı (503)**. |
+| `STORAGE_DRIVER` | `local` veya `s3`. Boşsa OS geçici dizini **yalnız `NODE_ENV` açıkça `development`/`test` iken**; aksi halde (üretim, staging, tanımsız) **yükleme kapalı (503)**. |
 | `STORAGE_LOCAL_DIR` | `local` için mutlak dizin (kalıcı volume). |
-| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE` | S3 uyumlu servis; üretimde HTTPS zorunlu. |
+| `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE` | S3 uyumlu servis; `development`/`test` dışında HTTPS zorunlu. |
 | `FFPROBE_PATH` | Opsiyonel; API imajına `ffmpeg` paketi eklendi. |
 
 Dosya yalnız admin oturumuyla `GET /creatives/:id/file` üzerinden akış olarak

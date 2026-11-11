@@ -197,3 +197,47 @@ Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (hepsi tamamlandı
 **Reddedilenler (15):** `.env.example`'da S3 kimlik alanları zaten var; serializable çakışmalar `db.serializable` ile 3 kez yeniden deneniyor; LIKE joker karakterleri; depolama yapılandırma hatasında açılışta düşme (bilinçli fail-fast); overlapping onaylı çarpan (DB exclusion engelliyor); eşit çalışma saatleri (envanter reddediyor); onaylanmamış kreatif reddinin READY'yi etkilememesi; audit'te campaignId (entityId zaten kampanya); ekran seçicide aktif filtresi (pasif eklenemez); test dosya adları; S3 akış iptali (Nest StreamableFile); `durationManual` adı; legacy NOT VALID (taşınan veride ihlal yok, P18 kapsıyor); yükleme ilerleme doğrulaması; manuel READY→DRAFT (P31'de belgeleniyor).
 
 **Tur 1 düzeltme kaydı (2026-11-11):** G1–G3 kullanıcının "Önerilenlerle düzelt" kararıyla; P1–P32 uygulandı (P33 defer). Yeni migration `20261111000100_campaign_booking_review` (yalnız ekleme; test DB satır sayıları önce/sonra aynı). Bilinçli davranış: LIVE/PAUSED'da bitişi uzatmak plan değişikliğidir; yeniden LIVE'a geçmeden önce yeni CMS_UPLOADED kaydı gerekir. Ana oturum doğrulaması: build 8/8, typecheck, lint temiz; 136 API + 2 web unit, 88 integration, 42 E2E geçti. Unit-only: 23514 eşlemesi, ffprobe kesinti (503), döndürme, gerçek S3 yeniden denemesi.
+
+### Code Review Findings — Tur 2 (2026-11-11) → Düzeltildi, CR-3 bekleniyor
+
+Aralık `c6609b9..8f007c9`. Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (hepsi tamamlandı). CR-1'in G1–G3 ve P1–P32 maddeleri büyük ölçüde doğru uygulanmış; yeni bulgular çoğunlukla düşük/orta. Bu turda çalıştırılan test yok; yalnız kodda doğrulama yapıldı. **1 intent_gap, 14 patch, 6 defer**; 11 red.
+
+**Intent gap (kullanıcı kararı gerekli)**
+- G4 (orta) REVOKED kreatifin içeriği o reklamverene kalıcı kilitleniyor: mükerrer kontrolü (`creatives.service.ts:137`) ve kısmi UNIQUE `creatives_advertiser_checksum_live_key` yalnız REJECTED'ı dışlıyor. Aynı dosya revoke sonrası yüklenirse `DUPLICATE_CREATIVE` döner; yeniden yükleme yolu yok. Seçenekler: (a) REVOKED'ı da dışla (indeks + kontrol; geri çekilen içerik yeniden yüklenip onaylanabilir); (b) bilinçli kilit, ama mükerrer yanıtında "geri çekilmiş" ayrı mesaj. Öneri: (b)'nin mesajı + hukuki geri çekme senaryosu için kilit korunur.
+
+**Patch — orta**
+- P1 `CampaignWizard.tsx:248` `decimal()` virgülü hep ondalık sayıyor; EN'de `1,500` → 1.500, `1,000,000` → reddedilir/yanlış. Yalnız tek virgül ve nokta yokken çevir, aksi halde ham bırak (sunucu reddetsin); EN için E2E.
+- P2 `media.ts:112-115` ffprobe `killed/signal/ERR_CHILD_PROCESS_STDIO_MAXBUFFER` 503 yapıyor: ffprobe'u çökerten/zaman aşımına uğratan/4 MB'dan büyük çıktı üreten dosya hiç REJECTED olmuyor, sonsuz 503. Bunları `UNREADABLE_MEDIA` REJECTED say; yalnız ENOENT/EACCES/ENOMEM/EMFILE/EAGAIN 503 kalsın. Unit test ekle.
+- P3 `creatives.service.ts:187` revoke COMPLETED/CANCELLED kampanyalara da `planChangedAt` yazıyor (spec: salt okunur). Terminal durumları atla (audit istenirse yalnız audit).
+- P4 `docs/CAMPAIGNS.md` P31/G1/G2/P5 ile eşitlenmemiş: el ile READY→DRAFT, `performedAt` 60 sn toleransı, `maxPlayoutsPerHourPerScreen` bilgi amaçlı, CMS işlemi yalnız READY/LIVE/PAUSED (+NOTE DRAFT), `planChangedAt` tazeliği, `REVOKED_CREATIVE` davranışı; geçici dizin/HTTPS kuralı artık "yalnız NODE_ENV development/test" (satır ~59–60 eskimiş).
+
+**Patch — düşük**
+- P5 Migration `UPDATE campaigns SET planChangedAt = updatedAt` (`…_review/migration.sql:19`): `updatedAt` READY→LIVE geçişiyle de ilerlediği için mevcut LIVE/PAUSED kampanyaların tüm CMS kanıtları eski görünür. `LEAST(updatedAt, ilk CMS_UPLOADED recordedAt)` ya da `createdAt` kullan (yeni migration gerekmez; henüz dağıtılmadıysa mevcut dosyayı düzelt, aksi halde yeni migration).
+- P6 `MP4_BRANDS` (`media.ts:53`) dar: `iso3`, `mmp4`, `MSNV`, `iso8/9`, `cmfc` gibi geçerli H.264 MP4 markaları reddedilir. Kara liste (`qt  `, `3gp*`, `3g2*`) ya da geniş liste.
+- P7 `/admin/creatives` sayfasında `advertisers` seçenekleri aynı 1000 kayıt sınırıyla kuruluyor ama `truncated` uyarısı iletilmiyor (`page.tsx:91`; P28 kısmi).
+- P8 Eşzamanlı aynı dosya yüklemesinde kısmi UNIQUE ihlali (P2002) genel 409 `INVALID_STATE_TRANSITION` oluyor; yükleme transaction'ında `DUPLICATE_CREATIVE`'e çevir (mevcut kreatif ID'siyle).
+- P9 `upload.ts`: `request.timeout` tanımsız, `ontimeout` hiç tetiklenmez; yarım bağlantıda yükleme sonsuza dek "meşgul". Zaman aşımı ayarla; 2xx ama şekil uyumsuz yanıtta "kayıt oluşmuş olabilir, listeyi kontrol edin" mesajı.
+- P10 `CampaignDetail.tsx` `CreativesTab onChange={setCampaign}`: revoke edilmiş kreatif unlink edilince `refreshValidation()` çağrılmıyor; genel sekmedeki engel/uyarı bayat kalır (CmsTab yeniliyor).
+- P11 `campaigns.service.ts` `screenRows` `lastOps` NOTE'u dışlamıyor ve `performedAt` ile sıralıyor; `screensLacking` ise NOTE'u dışlıyor → PLAYBACK_PAUSED sonrası NOTE girilmiş ekran arayüzde "eksik" çıkıyor, audit'te çıkmıyor. İkisini aynı kurala getir (+ aynı `active` filtresi). *Kodda yalnız kısmen doğrulandı.*
+- P12 `S3Storage.put` yeniden denenemez hataları (403/AccessDenied/NoSuchBucket) da 3 kez gecikmeyle deniyor; `$metadata.httpStatusCode < 500 && !== 429` ise hemen at.
+- P13 `update`: `overdeliveryTolerancePct: null` gönderimi no-op tespitinden kaçıp `planChangedAt` damgalayabilir ve READY'yi DRAFT'a düşürebilir. *Doğrulanmadı; testle teyit et.*
+- P14 `CMS` bağlamı `bookingError` 409'da diyaloğu düşürüyor / sunucu mesajı regex'ine bağlı (`/future/`, `/preced|before/`, `/\bnote\b/`): sunucuya ayrı hata `details.reason` kodu ekleyip istemci kodu okusun.
+
+**Defer**
+- D8 Migration'daki iki kısmi UNIQUE indeks mevcut kirli veride (çatal/mükerrer) düşer; henüz dağıtılmadı, ama dağıtımdan önce ön kontrol (`DO $$ … RAISE`) ekle.
+- D9 `flightMask` PAUSED→LIVE'da geçmişi de kapsıyor; `weeklyWindowHours` flight'a duyarsız (tabloda "X saat", doğrulamada engel olabilir); `offsetMinutes` yarım saatlik DST bölgelerinde 30 dk kayabilir (Lord_Howe).
+- D10 `revoke` çok kampanyaya bağlı kreatifte tek serializable işlemde N×update+audit (10 sn zaman aşımı); `updateMany`/`createMany`.
+- D11 `isCheckViolation` yalnız birim testle doğrulanmış (belgelenmiş) ve her 23514'ü "reload and retry" 409'una çeviriyor; gerçek Prisma hata şeklini entegrasyonda doğrula; `\b23514\b` payload'da eşleşebilir.
+- D12 Eski per-screen `schedule` satırları (varsa) `weeklyWindowHours`/doğrulamaya giriyor mu — kod yolunu doğrula.
+- D13 `planChangedAt`/`recordedAt` uygulama saatiyle yazılıyor (çok örnekli saat kayması); `revokedAt` UTC gösteriliyor; `Asia/Calcutta` testi ICU'ya bağlı.
+
+**Reddedilenler (11):** COMPLETED/CANCELLED sonrası CMS beyanı kapalı (G1 kullanıcı kararı, spec ile uyumlu); `REVOKED_CREATIVE` yalnız uyarı (G2 kararı); `planChangedAt` endAt uzatma/unlink'te ilerliyor (belgelenmiş bilinçli davranış); `SummaryStep` sonsuz istek riski (E2E 42 geçti, kanıt yok); `DeclarationWarning` ↔ `screensLacking` farkı (bilgi amaçlı); migration `UPDATE`'in kanıt eskitmesi güvenli yönde (fail-closed; yalnız P5 rahatlatma); ek kaynak/gürültü maddeleri.
+
+**Tur 2 düzeltme kaydı (2026-11-11):** Kullanıcı kararı G4 = (b): kilit korunur, mükerrer yanıtı `details.status` ile ayrışır ve REVOKED için ayrı TR/EN mesaj gösterilir (`booking.error.duplicateRevoked`); aynı dosya yeniden yüklenemez. P1–P12, P14 uygulandı; tümü kodda ve testlerde:
+- P1 TR'de yalnız tek virgül ondalık sayılır; EN'de `1,500` ham gider ve istemci doğrulamasında reddedilir (E2E eklendi).
+- P2 çöken ffprobe (SIGSEGV/SIGABRT/SIGBUS/SIGILL/SIGFPE) ve maxBuffer taşması `UNREADABLE_MEDIA` REJECTED olur. **Sapma:** zaman aşımı (SIGTERM) ve spawn/kaynak hataları bilinçli olarak 503 kalır; geçerli büyük dosyayı reddetmemek için.
+- P3 revoke COMPLETED/CANCELLED kampanyalara dokunmaz (planChangedAt ve audit yok). P4 CAMPAIGNS.md eşitlendi.
+- P5 migration geri doldurması `LEAST(updatedAt, ilk CMS_UPLOADED recordedAt)` oldu; migration henüz dağıtılmadığı için yerinde düzeltildi (test DB'leri yeniden oluşturulmadı; yalnız mevcut satırları etkiler).
+- P6 MP4 markası kara listeyle (`qt`, `3g*`) reddedilir, diğer ISO markaları kabul. P7 kreatif sayfası kesilme uyarısı. P8 eşzamanlı yüklemede P2002 → `DUPLICATE_CREATIVE`/yeni sürüm çakışması. P9 yükleme `timeout` 12 dk + 2xx ama okunamayan yanıtta `UPLOAD_UNCONFIRMED` mesajı. P11 arayüz son-işlem `NOTE`'u dışlar. P12 S3 `put` kalıcı 4xx'te yeniden denemez. P14 CMS hataları `details.reason` kodu taşır, istemci kodu okur (regex yedek).
+- **Reddedilen/yapılmayan:** P10 (unlink sonrası `campaign.updatedAt` değiştiği için doğrulama zaten yenileniyor, `CampaignDetail.tsx:46`); P13 (DTO `overdeliveryTolerancePct: null`'u 400 ile reddediyor; test eklendi). Defer D8–D13 açık.
+- Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 136 API birim; 89 integration (88 + 1 yeni); 43 E2E (42 + 1 yeni). Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi.

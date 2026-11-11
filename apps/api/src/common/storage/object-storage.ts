@@ -73,7 +73,10 @@ export class S3Storage implements ObjectStorage {
         return;
       } catch (error) {
         body.destroy();
-        if (attempt >= attempts) throw error;
+        const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+        // 4xx other than 429/408 (AccessDenied, NoSuchBucket, ...) will not heal by waiting.
+        const permanent = status !== undefined && status >= 400 && status < 500 && status !== 429 && status !== 408;
+        if (permanent || attempt >= attempts) throw error;
         await new Promise(resolve => setTimeout(resolve, this.retryDelayMs * attempt));
       }
     }

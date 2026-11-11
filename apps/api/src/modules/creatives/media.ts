@@ -49,10 +49,13 @@ interface FfprobeOutput { streams?: FfprobeStream[]; format?: { duration?: strin
 
 /** Largest accepted edge, in pixels, for images and video (after rotation). */
 export const MAX_DIMENSION = 8192;
-/** ISO base media brands that denote a real MP4 (not QuickTime/3GP/etc., which share ffprobe's `mov,mp4,...` name). */
-export const MP4_BRANDS: readonly string[] = ['isom', 'iso2', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42', 'avc1', 'M4V', 'dash'];
+/** Major brands that share ffprobe's `mov,mp4,...` name but are not MP4: QuickTime and the 3GPP family. Any other ISO brand
+ * (isom, iso2-9, mp41/2, avc1, cmfc, MSNV, XAVC, ...) is accepted. */
+export const isMp4Brand = (brand: string): boolean => brand !== '' && brand !== 'qt' && !/^3g/i.test(brand);
 /** Spawn/resource faults that say nothing about the uploaded file. */
-const TOOL_FAULT_CODES = ['ENOENT', 'ENOBUFS', 'EACCES', 'EAGAIN', 'ENOMEM', 'EMFILE', 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER'];
+const TOOL_FAULT_CODES = ['ENOENT', 'ENOBUFS', 'EACCES', 'EAGAIN', 'ENOMEM', 'EMFILE'];
+/** A probe that crashes on the file (memory fault, abort, ...) or floods stdout is a property of the file. */
+const FILE_CRASH_SIGNALS = ['SIGSEGV', 'SIGABRT', 'SIGBUS', 'SIGILL', 'SIGFPE'];
 
 export type FfprobeRunner = (path: string) => Promise<FfprobeOutput>;
 export const runFfprobe: FfprobeRunner = path => new Promise((resolve, reject) => {
@@ -92,7 +95,7 @@ export function interpretProbe(type: SniffedType, output: FfprobeOutput): Inspec
     return { ok: true, type, probe: { durationSeconds: null, width, height, videoCodec: null } };
   }
   const brand = (output.format?.tags?.major_brand ?? '').trim();
-  if (!(output.format?.format_name ?? '').split(',').includes('mp4') || !MP4_BRANDS.includes(brand)) {
+  if (!(output.format?.format_name ?? '').split(',').includes('mp4') || !isMp4Brand(brand)) {
     return { ok: false, reason: 'NOT_MP4_CONTAINER', type };
   }
   if (video.codec_name !== 'h264') return { ok: false, reason: 'VIDEO_CODEC_NOT_H264', type };
@@ -109,10 +112,12 @@ export async function inspectMedia(path: string, probe: FfprobeRunner = runFfpro
   if (!type) return { ok: false, reason: 'UNSUPPORTED_TYPE', type: null };
   let output: FfprobeOutput;
   try { output = await probe(path); } catch (error) {
-    // Timeouts, signals, spawn/resource faults are operations faults (503, nothing stored); only a normal
-    // non-zero exit says the file itself is unreadable.
+    // Timeouts and spawn/resource faults are operations faults (503, nothing stored). A normal non-zero exit, a
+    // crash signal in the probe or an output flood (maxBuffer) are properties of the file: rejected, not retried forever.
     const fault = error as { code?: unknown; killed?: unknown; signal?: unknown };
-    if (fault.killed || fault.signal || (typeof fault.code === 'string' && TOOL_FAULT_CODES.includes(fault.code))) throw new MediaToolUnavailable();
+    const crashed = typeof fault.signal === 'string' && FILE_CRASH_SIGNALS.includes(fault.signal);
+    const flooded = fault.code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+    if (!crashed && !flooded && (fault.killed || fault.signal || (typeof fault.code === 'string' && TOOL_FAULT_CODES.includes(fault.code)))) throw new MediaToolUnavailable();
     return { ok: false, reason: 'UNREADABLE_MEDIA', type };
   }
   return interpretProbe(type, output);

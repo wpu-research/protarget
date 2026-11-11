@@ -236,8 +236,8 @@ describe('creative media inspection', () => {
     const video = { codec_type: 'video', codec_name: 'h264', width: 1920, height: 1080 };
     const probe = (brand?: string) => interpretProbe(mp4, { streams: [video], format: { duration: '5', format_name: 'mov,mp4,m4a,3gp,3g2,mj2',
       ...(brand === undefined ? {} : { tags: { major_brand: brand } }) } });
-    for (const brand of ['isom', 'iso2', 'iso4', 'iso5', 'iso6', 'mp41', 'mp42', 'avc1', 'M4V', 'dash', ' isom ']) expect(probe(brand)).toMatchObject({ ok: true });
-    for (const brand of ['qt  ', '3gp4', 'mp42x', 'm4v', undefined]) expect(probe(brand)).toMatchObject({ ok: false, reason: 'NOT_MP4_CONTAINER' });
+    for (const brand of ['isom', 'iso2', 'iso3', 'iso4', 'iso5', 'iso6', 'iso8', 'mp41', 'mp42', 'mmp4', 'avc1', 'M4V', 'dash', 'cmfc', 'MSNV', 'XAVC', ' isom ']) expect(probe(brand)).toMatchObject({ ok: true });
+    for (const brand of ['qt  ', '3gp4', '3g2a', '3GP5', undefined]) expect(probe(brand)).toMatchObject({ ok: false, reason: 'NOT_MP4_CONTAINER' });
   });
   it('skips cover-art streams, swaps rotated dimensions and caps size (P6)', () => {
     const format = { duration: '5', format_name: 'mov,mp4', tags: { major_brand: 'isom' } };
@@ -254,16 +254,19 @@ describe('creative media inspection', () => {
     expect(interpretProbe(png, { streams: [{ codec_type: 'video', codec_name: 'png', width: 8192, height: 8193 }] })).toMatchObject({ ok: false, reason: 'DIMENSIONS_TOO_LARGE' });
     expect(interpretProbe(png, { streams: [{ codec_type: 'video', codec_name: 'png', width: 8192, height: 8192 }] })).toMatchObject({ ok: true });
   });
-  it('treats timeouts, signals and resource faults as tool outages; only a normal non-zero exit is unreadable media (P7)', async () => {
+  it('treats timeouts and resource faults as tool outages; a normal non-zero exit, a probe crash or an output flood is unreadable media (P7/CR-2)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'probe-'));
     const file = join(dir, 'x.png');
     writeFileSync(file, Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]));
     const fail = (extra: object) => () => Promise.reject(Object.assign(new Error('x'), extra));
     for (const extra of [{ killed: true, signal: 'SIGTERM' }, { signal: 'SIGKILL' }, { code: 'ENOBUFS' }, { code: 'EACCES' }, { code: 'EAGAIN' },
-      { code: 'ENOMEM' }, { code: 'EMFILE' }, { code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', killed: true }]) {
+      { code: 'ENOMEM' }, { code: 'EMFILE' }]) {
       await expect(inspectMedia(file, fail(extra))).rejects.toBeInstanceOf(MediaToolUnavailable);
     }
     await expect(inspectMedia(file, fail({ code: 1 }))).resolves.toMatchObject({ ok: false, reason: 'UNREADABLE_MEDIA' });
+    for (const extra of [{ signal: 'SIGSEGV' }, { signal: 'SIGABRT', killed: false }, { code: 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER', killed: true, signal: 'SIGTERM' }]) {
+      await expect(inspectMedia(file, fail(extra))).resolves.toMatchObject({ ok: false, reason: 'UNREADABLE_MEDIA' });
+    }
   });
   it('treats a missing ffprobe binary as an operations fault, not a rejection', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'probe-'));

@@ -351,6 +351,8 @@
   "booking.error.pickToRemove": "Çıkarmak için booking’deki ekranları işaretleyin.",
   "booking.error.tooManyScreens": "Tek seferde en fazla 100 ekran işlenir.",
   "booking.error.duplicate": "Bu reklamveren için aynı dosya zaten yüklenmiş.",
+  "booking.error.duplicateRevoked": "Bu dosya, bu reklamverenin geri çekilmiş bir kreatifiyle aynı; geri çekilen içerik yeniden yüklenemez.",
+  "booking.error.uploadUnconfirmed": "Yükleme sonucu doğrulanamadı; kayıt oluşmuş olabilir. Tekrar yüklemeden önce kreatif listesini kontrol edin.",
   "booking.error.storage": "Dosya depolama yapılandırılmamış veya erişilemiyor. Yükleme yapılamadı.",
   "booking.error.tooLarge": "Dosya 200 MB sınırını aşıyor.",
   "booking.error.notReady": "Booking bu geçiş için hazır değil: engelleyici sorunlar veya eksik CMS yükleme kaydı var.",

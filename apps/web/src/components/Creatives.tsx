@@ -146,8 +146,8 @@ export function ReviewActions({ creative, onChange }: { creative: CreativeSummar
   </div>;
 }
 
-export function Creatives({ data, advertisers, uploadAdvertisers, filters }: {
-  data: PageResult<CreativeSummary>; advertisers: OrgRef[]; uploadAdvertisers: OrgRef[]; filters: Filters;
+export function Creatives({ data, advertisers, uploadAdvertisers, filters, truncated = false }: {
+  data: PageResult<CreativeSummary>; advertisers: OrgRef[]; uploadAdvertisers: OrgRef[]; filters: Filters; truncated?: boolean;
 }) {
   const text = useText();
   const router = useRouter();
@@ -170,6 +170,7 @@ export function Creatives({ data, advertisers, uploadAdvertisers, filters }: {
     router.push(`/admin/creatives?${values}`);
   }
   return <div className="stack inventory creatives">
+    {truncated && <p className="notice full" role="note">{text('booking.listTruncated')}</p>}
     <section className="card">
       <div className="section-heading"><h2>{text('creative.upload')}</h2>
         <button type="button" className="button quiet" aria-expanded={showUpload} onClick={() => setShowUpload(value => !value)}>{text(showUpload ? 'common.cancel' : 'creative.upload')}</button></div>

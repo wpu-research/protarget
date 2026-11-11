@@ -91,7 +91,7 @@ export default async function AdminPage({ params, searchParams }: {
       return <>{heading(t('nav.campaigns.creatives', language))}
         <Creatives data={await serverApi<CreativePage>(`/creatives?${query}`)}
           advertisers={advertisers} uploadAdvertisers={orgs.filter(org => org.type === 'ADVERTISER' && org.active).map(org => ({ id: org.id, name: org.name, type: org.type }))}
-          filters={{ advertiserId, status, pageSize }} /></>;
+          filters={{ advertiserId, status, pageSize }} truncated={orgsTruncated} /></>;
     }
     const id = slug[1];
     const wizardData = async () => {

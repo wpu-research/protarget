@@ -10,7 +10,7 @@ import {
 import type { MessageKey } from '@protarget/i18n';
 import { api, RequestError } from '@/lib/client';
 import { localInputToUtc, minuteOf, utcToLocalInput, validZone } from '@/lib/zone';
-import { useText } from './Locale';
+import { useLocale, useText } from './Locale';
 import {
   bookingError, ButtonPager, BookingStatusBadge, ConfirmDialog, CreativeFacts, CreativeStatusBadge, Feedback, isOvernight, ScreenCells, ScreenHeadCells,
 } from './campaign-ui';
@@ -222,6 +222,7 @@ const COMMERCIAL_AMOUNTS = ['unitPrice', 'budget', 'contractedAmount', 'guarante
 
 function CommercialStep({ campaign, onSaved, onBack }: { campaign: CampaignDetail; onSaved: (value: CampaignDetail) => void; onBack: () => void }) {
   const text = useText();
+  const turkish = useLocale().toLowerCase().startsWith('tr');
   const commercial = campaign.commercial;
   const formRef = useRef<HTMLFormElement>(null);
   const [model, setModel] = useState<string>(commercial.pricingModel ?? '');
@@ -244,8 +245,12 @@ function CommercialStep({ campaign, onSaved, onBack }: { campaign: CampaignDetai
     if (busy) return;
     const form = new FormData(event.currentTarget);
     const get = (name: string) => field(form, name) || null;
-    // "125,50" is how a Turkish keyboard writes a decimal; the API only knows the point.
-    const decimal = (name: string) => get(name)?.replace(',', '.') ?? null;
+    // "125,50" is how a Turkish keyboard writes a decimal; the API only knows the point. Only a lone comma in the
+    // Turkish UI is a decimal comma: in English "1,500" is a thousands group and must be rejected, not read as 1.5.
+    const decimal = (name: string) => {
+      const value = get(name);
+      return value !== null && turkish && /^\d+,\d+$/.test(value) ? value.replace(',', '.') : value;
+    };
     const check = (value: string | null, pattern: RegExp, positive = false) =>
       value === null || (pattern.test(value) && (!positive || /[1-9]/.test(value)));
     const priced = !!model;
@@ -257,7 +262,7 @@ function CommercialStep({ campaign, onSaved, onBack }: { campaign: CampaignDetai
       guaranteedImpressions: priced ? get('guaranteedImpressions') : null, contractedQuantity: priced ? get('contractedQuantity') : null,
       publisherSharePct: priced ? decimal('publisherSharePct') : null, protargetSharePct: priced ? decimal('protargetSharePct') : null,
       primaryGoal: get('primaryGoal'), targetPlayouts: get('targetPlayouts'), targetImpressions: get('targetImpressions'),
-      maxPlayoutsPerHourPerScreen: maxRaw === null ? null : Number(maxRaw.replace(',', '.')),
+      maxPlayoutsPerHourPerScreen: maxRaw === null ? null : Number(turkish ? maxRaw.replace(',', '.') : maxRaw),
     };
     // Currency, tolerance and PG basis only exist once a pricing model is chosen; they are never invented for "none".
     const tolerance = priced ? (decimal('overdeliveryTolerancePct') ?? '') : null;

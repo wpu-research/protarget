@@ -351,6 +351,8 @@
   "booking.error.pickToRemove": "Tick screens that are in the booking to remove them.",
   "booking.error.tooManyScreens": "At most 100 screens can be processed at once.",
   "booking.error.duplicate": "This advertiser already has the same file.",
+  "booking.error.duplicateRevoked": "This file matches a revoked creative of this advertiser; revoked content cannot be uploaded again.",
+  "booking.error.uploadUnconfirmed": "The upload result could not be confirmed; the record may exist. Check the creative list before uploading again.",
   "booking.error.storage": "File storage is not configured or unavailable. The upload failed.",
   "booking.error.tooLarge": "The file exceeds the 200 MB limit.",
   "booking.error.notReady": "The booking is not ready for this transition: there are blockers or missing CMS upload records.",

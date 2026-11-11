@@ -15,8 +15,10 @@ ALTER TABLE "campaigns" ADD COLUMN     "planChangedAt" TIMESTAMPTZ NOT NULL DEFA
 -- AddForeignKey
 ALTER TABLE "creatives" ADD CONSTRAINT "creatives_revokedById_fkey" FOREIGN KEY ("revokedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
--- Mevcut kampanyalar için planChangedAt, son güncelleme zamanından başlar.
-UPDATE "campaigns" SET "planChangedAt" = "updatedAt";
+-- Mevcut kampanyalar için planChangedAt: ilk CMS_UPLOADED kaydından (varsa) önceye çekilir; böylece READY→LIVE gibi
+-- sonradan ilerleyen updatedAt mevcut kanıtları eski göstermez. Kanıtı olmayanlarda updatedAt kalır.
+UPDATE "campaigns" c SET "planChangedAt" = LEAST(c."updatedAt", COALESCE(
+  (SELECT min(o."recordedAt") FROM "campaign_cms_operations" o WHERE o."campaignId" = c."id" AND o."type" = 'CMS_UPLOADED'), c."updatedAt"));
 
 -- Onaylanan kreatif değişmez; tek istisna gerekçeli APPROVED -> REVOKED geçişidir (üç geri çekme kolonuyla).
 -- REVOKED satırı da dondurulur.

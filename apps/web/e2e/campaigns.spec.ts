@@ -735,3 +735,20 @@ test('commercial step accepts a decimal comma, confirms removing the pricing mod
   expect(body.pricingModel).toBeNull(); expect(body.unitPrice).toBeNull(); expect(body.budget).toBeNull();
   expect(Object.keys(body).sort()).toEqual(['budget', 'pricingModel', 'unitPrice']);
 });
+
+test('English commercial step never reads a thousands comma as a decimal point (CR-2)', async ({ page }) => {
+  test.setTimeout(120000);
+  await session(page, 'en');
+  const draft = await seedReady('encomma', { status: 'DRAFT' });
+  await page.goto(`/admin/campaigns/${draft.campaign.id}/edit`);
+  const steps = page.getByRole('list', { name: en['booking.steps'] });
+  await steps.getByRole('button', { name: new RegExp(en['booking.step.commercial']) }).click();
+  await page.locator('select[name="pricingModel"]').selectOption('CPM');
+  await page.getByLabel(en['booking.unitPrice'], { exact: true }).fill('125');
+  await page.getByLabel(en['booking.budget'], { exact: true }).fill('1,500');
+  let patched = false;
+  page.on('request', item => { if (item.method() === 'PATCH' && new URL(item.url()).pathname === `/api/v1/campaigns/${draft.campaign.id}`) patched = true; });
+  await page.getByRole('button', { name: en['booking.saveNext'], exact: true }).click();
+  await expect(page.getByRole('alert').first()).toBeVisible();
+  expect(patched).toBe(false);
+});

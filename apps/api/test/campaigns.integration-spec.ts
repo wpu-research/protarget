@@ -386,7 +386,8 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     await declare(`/campaigns/${draft.id}`, screen.id, 'NOTE', { note: 'Panel access pending' }).expect(201);
 
     const { path, screen: ready } = await readyCampaign();
-    await declare(path, ready.id, 'NOTE').expect(400);
+    const noNote = await declare(path, ready.id, 'NOTE').expect(400);
+    expect(noNote.body.error.details).toMatchObject({ reason: 'NOTE_REQUIRED' });
     const planned = (await api('get', path).expect(200)).body;
     expect(planned.planChangedAt).toMatch(/Z$/);
     expect(planned.screens[0]).toMatchObject({ cmsUploaded: false, cmsUploadStale: false });
@@ -411,7 +412,8 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
 
     // Terminal states take no CMS declarations at all.
     expect((await api('post', `${path}/transitions`).send({ to: 'COMPLETED' }).expect(200)).body.status).toBe('COMPLETED');
-    await declare(path, ready.id, 'PLAYBACK_STOPPED').expect(409);
+    expect((await declare(path, ready.id, 'PLAYBACK_STOPPED').expect(409)).body.error.details).toMatchObject({ reason: 'CMS_STATUS_NOT_ALLOWED' });
+    expect((await declare(path, ready.id, 'CMS_UPLOADED', { performedAt: new Date(Date.now() + 3_600_000).toISOString() }).expect(409)).body.error.code).toBeDefined();
     const cancelled = await makeCampaign();
     await api('post', `/campaigns/${cancelled.id}/screens`).send({ screenIds: [screen.id] }).expect(200);
     await api('post', `/campaigns/${cancelled.id}/transitions`).send({ to: 'CANCELLED', reason: 'Withdrawn' }).expect(200);
@@ -463,7 +465,8 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     const unlinked = (await api('post', `${second.path}/creatives/remove`).send({ creativeId: first.creativeId }).expect(200)).body;
     expect(unlinked).toMatchObject({ status: 'LIVE', creatives: [] });
     const duplicate = await upload(first.file, { displayDurationSeconds: '10' }).expect(409);
-    expect(duplicate.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: first.creativeId } });
+    expect(duplicate.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: first.creativeId, status: 'REVOKED' } });
+    expect(duplicate.body.error.message).toMatch(/revoked/);
 
     // The immutability trigger allows exactly APPROVED -> REVOKED with a reason, and freezes the result.
     await expect(db.creative.update({ where: { id: first.creativeId }, data: { status: 'APPROVED' } })).rejects.toThrow();
@@ -519,6 +522,8 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
       await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: 1, startTime: '08:00', endTime: '12:00' }] }).expect(200),
     ];
     for (const response of noops) expect(response.body).toMatchObject({ status: 'READY', planChangedAt: detail.planChangedAt });
+    // The tolerance column is NOT NULL: the DTO refuses null, so it can never stamp a plan change (CR-2).
+    await api('patch', path).send({ overdeliveryTolerancePct: null }).expect(400);
     expect(await auditCount(campaign.id)).toBe(audits);
     // A real change still reverts and audits only what changed.
     const changed = (await api('patch', path).send({ name: detail.name, budget: '20000' }).expect(200)).body;
@@ -672,6 +677,26 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     await api('post', `/campaigns/${draft.id}/transitions`).send({ to: 'CANCELLED' }).expect(400);
     expect((await api('post', `/campaigns/${draft.id}/transitions`).send({ to: 'CANCELLED', reason: 'Client withdrew' }).expect(200)).body.status).toBe('CANCELLED');
     await api('post', `/campaigns/${draft.id}/screens`).send({ screenIds: [randomUUID()] }).expect(409);
+  });
+
+  it('leaves finished bookings alone when a creative is revoked, and lets NOTE entries never hide the last playback declaration (CR-2)', async () => {
+    const done = await readyCampaign();
+    await declare(done.path, done.screen.id).expect(201);
+    await api('post', `${done.path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    await api('post', `${done.path}/transitions`).send({ to: 'COMPLETED' }).expect(200);
+    const before = (await api('get', done.path).expect(200)).body;
+    const auditsBefore = await auditCount(done.campaign.id);
+    await api('post', `/creatives/${done.creativeId}/revoke`).send({ reason: 'Rights withdrawn' }).expect(200);
+    const after = (await api('get', done.path).expect(200)).body;
+    expect(after).toMatchObject({ status: 'COMPLETED', planChangedAt: before.planChangedAt });
+    expect(await auditCount(done.campaign.id)).toBe(auditsBefore);
+
+    const live = await readyCampaign();
+    await declare(live.path, live.screen.id).expect(201);
+    await api('post', `${live.path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    await declare(live.path, live.screen.id, 'PLAYBACK_PAUSED').expect(201);
+    await declare(live.path, live.screen.id, 'NOTE', { note: 'Operator remark' }).expect(201);
+    expect((await api('get', live.path).expect(200)).body.screens[0].lastCmsOperation).toMatchObject({ type: 'PLAYBACK_PAUSED' });
   });
 
   it('enforces database guards independently of the API', async () => {

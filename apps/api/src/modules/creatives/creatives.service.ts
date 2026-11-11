@@ -135,8 +135,12 @@ export class CreativesService {
           }
           if (inspected.ok) {
             const duplicate = await tx.creative.findFirst({ where: { advertiserId, checksum, status: { not: 'REJECTED' } },
-              select: { id: true, code: true } });
-            if (duplicate) throw new ApiError(409, 'DUPLICATE_CREATIVE', 'This file already exists for the advertiser', { creativeId: duplicate.id, code: duplicate.code });
+              select: { id: true, code: true, status: true } });
+            if (duplicate) {
+              throw new ApiError(409, 'DUPLICATE_CREATIVE', duplicate.status === 'REVOKED'
+                ? 'This file matches a revoked creative of the advertiser and cannot be uploaded again'
+                : 'This file already exists for the advertiser', { creativeId: duplicate.id, code: duplicate.code, status: duplicate.status });
+            }
           }
           const probe = inspected.ok ? inspected.probe : null;
           const row = await tx.creative.create({ data: {
@@ -157,6 +161,13 @@ export class CreativesService {
         if (storageKey) await storage.delete(storageKey).catch(() => {
           console.error(JSON.stringify({ level: 'error', msg: 'orphan creative object', storageKey }));
         });
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && inspected.ok) {
+          // A concurrent upload won the partial unique index: report it like the application-level check does.
+          const existing = await this.db.creative.findFirst({ where: { advertiserId, checksum, status: { not: 'REJECTED' } },
+            select: { id: true, code: true, status: true } });
+          if (existing) throw new ApiError(409, 'DUPLICATE_CREATIVE', 'This file already exists for the advertiser', { creativeId: existing.id, code: existing.code, status: existing.status });
+          if (dto.replacesId) throw conflict('This creative already has a newer version');
+        }
         throw error;
       }
     } finally {
@@ -184,7 +195,7 @@ export class CreativesService {
       const after = presentCreative(updated);
       await this.audit.append(tx, { userId: actor.user.id, action: 'CREATIVE_REVOKED', entityType: 'creative', entityId: id,
         before: presentCreative(row), after });
-      const links = await tx.campaignCreative.findMany({ where: { creativeId: id, campaign: { deletedAt: null } },
+      const links = await tx.campaignCreative.findMany({ where: { creativeId: id, campaign: { deletedAt: null, status: { notIn: ['COMPLETED', 'CANCELLED'] } } },
         select: { campaign: { select: { id: true, status: true } } } });
       for (const { campaign } of links) {
         await tx.campaign.update({ where: { id: campaign.id }, data: {

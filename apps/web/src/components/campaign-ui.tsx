@@ -18,7 +18,14 @@ export function bookingError(error: unknown, context?: BookingErrorContext): Mes
   if (error instanceof RequestError) {
     const message = error.serverMessage.toLowerCase();
     if (context === 'cms') {
-      if (error.status === 409) return 'booking.error.cmsStatus';
+      // Server reason codes first; the message patterns below only serve responses without a reason.
+      const reason = error.details?.reason;
+      if (reason === 'CMS_STATUS_NOT_ALLOWED') return 'booking.error.cmsStatus';
+      if (reason === 'PERFORMED_IN_FUTURE') return 'booking.error.future';
+      if (reason === 'PERFORMED_BEFORE_BOOKING') return 'booking.error.cmsBeforeBooking';
+      if (reason === 'SCREEN_NOT_IN_BOOKING') return 'booking.error.cmsScreen';
+      if (reason === 'NOTE_REQUIRED') return 'booking.error.noteRequired';
+      if (error.status === 409 && error.code === 'INVALID_STATE_TRANSITION' && !error.details?.reason) return 'booking.error.conflict';
       if (error.code === 'VALIDATION_FAILED') {
         if (/future/.test(message)) return 'booking.error.future';
         if (/preced|before/.test(message)) return 'booking.error.cmsBeforeBooking';
@@ -27,8 +34,9 @@ export function bookingError(error: unknown, context?: BookingErrorContext): Mes
       }
     }
     if (context === 'creativeLink' && error.status === 409 && error.code !== 'DUPLICATE_CREATIVE' && /revoked/.test(message)) return 'booking.error.creativeRevoked';
+    if (error.code === 'DUPLICATE_CREATIVE' && error.details?.status === 'REVOKED') return 'booking.error.duplicateRevoked';
     const keys: Record<string, MessageKey> = {
-      DUPLICATE_CREATIVE: 'booking.error.duplicate', STORAGE_UNAVAILABLE: 'booking.error.storage',
+      DUPLICATE_CREATIVE: 'booking.error.duplicate', UPLOAD_UNCONFIRMED: 'booking.error.uploadUnconfirmed', STORAGE_UNAVAILABLE: 'booking.error.storage',
       PAYLOAD_TOO_LARGE: 'booking.error.tooLarge', CAMPAIGN_NOT_READY: 'booking.error.notReady',
       INVALID_STATE_TRANSITION: 'booking.error.conflict', VALIDATION_FAILED: 'booking.error.validation',
     };
