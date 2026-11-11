@@ -117,3 +117,18 @@ Reviewers used source/in-memory handler checks, not full-suite reruns; the
 parent executed the final build/typecheck/lint, 98 unit, 70 integration and
 30 browser tests. No unresolved inventory review finding remains; Phase 0
 deferred work is separate and remains open.
+
+## Deployment record — 2026-11-11
+
+The user explicitly authorized live deployment. Source `247aa02` was uploaded
+as a secret-scanned clean commit archive to the existing Railway pilot.
+Pre-migration custom backup and duplicate checks passed; all six migration
+checksums match. Migration → API → web succeeded in order. Live inventory
+create/edit/approval/supersession, protected routes, cookies, TR/EN/mobile,
+audit and logout passed; smoke-owned inventory was deactivated.
+Two harness-only assertion mistakes were corrected during verification;
+no application changes were needed. Evidence and precise deployment IDs:
+`docs/RAILWAY_DEPLOYMENT.md` and
+`docs/verification/2026-11-11-railway-inventory/`.
+No remote Git push, database reset or automatic rollback occurred.
+Phase 0/deferred acceptance remains open; acceptance/sprint stays `review`.

@@ -1,6 +1,7 @@
 # Manuel envanter — 10 Kasım 2026
 
-Bu geliştirme yerel çalışma ağacındadır; Railway'e yayımlanmamıştır.
+Bu geliştirme 11 Kasım 2026'da kullanıcının onayıyla Railway pilotuna
+yayımlandı; canlı doğrulama `RAILWAY_DEPLOYMENT.md` içindedir.
 Faz 0 kabulü veya ertelenen güvenlik/operasyon işleri kapanmış sayılmaz.
 
 ## Kullanım

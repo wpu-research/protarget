@@ -2,8 +2,10 @@
 
 **Mevcut durum:** Faz 0 kimlik/kurum/kullanıcı temeline gemi/ekran envanteri
 ve sürümlü manuel çarpan yönetimi eklendi. Envanter yalnız yöneticilere açıktır.
-Bu geliştirme **canlıya yayımlanmadı**. Faz 0'ın Compose kabulü ve ertelenen
-işleri açık kalır; üretime hazır kabul etmeyin.
+Envanter **11 Kasım 2026'da Railway pilotuna yayımlandı**; canlı
+gemi/ekran, çarpan ve TR/EN/mobil kontrolleri geçti. Yayın kanıtı:
+`docs/RAILWAY_DEPLOYMENT.md`. Faz 0'ın Compose kabulü ve ertelenen işleri
+açık kalır; tam üretim kabulü sayılmaz.
 
 ## Ürün kapsamı
 

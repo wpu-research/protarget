@@ -1,0 +1,271 @@
+{
+  "date": "2026-11-11",
+  "scope": "user-authorized Railway inventory pilot deployment; Phase 0 acceptance still review",
+  "sourceCommit": "247aa02146612250a2213e1e501cb1ccc9f71040",
+  "project": "f03dbfdd-f270-4159-8d21-28a0dc288a49",
+  "environment": "c2344e59-93dc-4b3f-bee0-19541f78cc79",
+  "release": {
+    "commit": "247aa02146612250a2213e1e501cb1ccc9f71040",
+    "trackedFiles": 202,
+    "archiveSha256": "ee74d3a00dfebeb93d3d2c80b3c94778cb5136a1ef1bb8d447a0368a5831187d",
+    "suppliedSecretValues": 12,
+    "secretMatches": 0,
+    "privateFilesIncluded": false
+  },
+  "backup": {
+    "status": "created",
+    "format": "PostgreSQL custom archive",
+    "bytes": 85638,
+    "sha256": "cbc2e31d5f03a291a66c80167797c2fa58ed49eb73968ef9c8c2e40e01383983",
+    "archiveListVerified": true,
+    "restoreRehearsal": false,
+    "storage": "gitignored .local/backups, directory 0700/file 0600"
+  },
+  "preflight": {
+    "postgres": "18.6 (Debian 18.6-1.pgdg13+2)",
+    "migrations": 3,
+    "failedMigrations": 0,
+    "screenCount": 0,
+    "venueCount": 0,
+    "multiplierCount": 0,
+    "canonicalDuplicateGroups": 0,
+    "migrationNames": [
+      "20261110000000_init",
+      "20261110000100_constraints",
+      "20261110000200_phase0_identity"
+    ]
+  },
+  "schema": {
+    "migrations": [
+      {
+        "name": "20261110000000_init",
+        "checksum": "77ec743636901a352eaad66c927c5ea47007a4edce798200edd1bedb78c34d48"
+      },
+      {
+        "name": "20261110000100_constraints",
+        "checksum": "356413b349075bd27af476b241627c01804e390fd6efa08bdc8619bdcd2ffc2e"
+      },
+      {
+        "name": "20261110000200_phase0_identity",
+        "checksum": "59a7f60897d06f1c71c550f4b931564ef5703ad60b2e37827f047e6eca7aa5b2"
+      },
+      {
+        "name": "20261110000300_manual_inventory",
+        "checksum": "b5a9b1f4956e9a01305ec716bd68030604f5c818398c249a282239295c4b4ad6"
+      },
+      {
+        "name": "20261110000400_inventory_timing_edits",
+        "checksum": "3a7cf7dd25bee38296e8333b84f1658d924748a71084ca048cac8717335bcc4b"
+      },
+      {
+        "name": "20261110000500_inventory_code_whitespace",
+        "checksum": "7fd5f5660e37390cca692b00d2a751b0f5cb5f5f48261fbe3db6151fc51c3319"
+      }
+    ],
+    "failedMigrations": 0,
+    "venueCount": 0,
+    "screenCount": 0,
+    "multiplierCount": 0,
+    "inventoryTimingTriggers": 2,
+    "canonicalIndex": 1
+  },
+  "deployments": {
+    "migration": {
+      "service": "migration",
+      "id": "73d724b9-7f9d-4177-a07b-81dfa8b35526",
+      "status": "SUCCESS",
+      "sourceCommit": "247aa02146612250a2213e1e501cb1ccc9f71040",
+      "verified": true,
+      "migrationEvents": [
+        {
+          "migration": "schema",
+          "status": "started"
+        },
+        {
+          "migration": "schema",
+          "status": "complete"
+        },
+        {
+          "migration": "runtime-role",
+          "status": "started"
+        },
+        {
+          "migration": "runtime-role",
+          "status": "complete"
+        },
+        {
+          "migration": "runtime-grants",
+          "status": "started"
+        },
+        {
+          "migration": "runtime-grants",
+          "status": "complete"
+        },
+        {
+          "migration": "administrator",
+          "status": "started"
+        },
+        {
+          "migration": "administrator",
+          "status": "complete"
+        },
+        {
+          "migration": "status",
+          "status": "started"
+        },
+        {
+          "migration": "status",
+          "status": "complete"
+        },
+        {
+          "migration": "all",
+          "status": "complete"
+        }
+      ]
+    },
+    "api": {
+      "service": "api",
+      "id": "99952375-2d85-4e7f-ab89-43d44922c425",
+      "status": "SUCCESS",
+      "sourceCommit": "247aa02146612250a2213e1e501cb1ccc9f71040",
+      "verified": true
+    },
+    "web": {
+      "service": "web",
+      "id": "de68631c-99f2-47c8-8414-e5b9e01f6133",
+      "status": "SUCCESS",
+      "sourceCommit": "247aa02146612250a2213e1e501cb1ccc9f71040",
+      "verified": true
+    }
+  },
+  "finalServices": [
+    {
+      "service": "migration",
+      "serviceId": "e1566163-9498-4caf-8282-ba791148ec93",
+      "deployment": "73d724b9-7f9d-4177-a07b-81dfa8b35526",
+      "status": "SUCCESS",
+      "dockerfile": "infra/Dockerfile.api",
+      "startCommand": "node infra/railway/migrate.cjs",
+      "healthcheckPath": null,
+      "restartPolicy": "NEVER",
+      "publicDomains": []
+    },
+    {
+      "service": "web",
+      "serviceId": "8bee842a-2134-4f96-9d66-68c42cfc8120",
+      "deployment": "de68631c-99f2-47c8-8414-e5b9e01f6133",
+      "status": "SUCCESS",
+      "dockerfile": "infra/Dockerfile.web",
+      "startCommand": null,
+      "healthcheckPath": "/api/v1/health",
+      "restartPolicy": "ON_FAILURE",
+      "publicDomains": [
+        "web-production-570f712c.up.railway.app"
+      ]
+    },
+    {
+      "service": "api",
+      "serviceId": "ec8d1efb-07d4-47e8-a717-53cdbf94ef1a",
+      "deployment": "99952375-2d85-4e7f-ab89-43d44922c425",
+      "status": "SUCCESS",
+      "dockerfile": "infra/Dockerfile.api",
+      "startCommand": null,
+      "healthcheckPath": "/api/v1/health",
+      "restartPolicy": "ON_FAILURE",
+      "publicDomains": []
+    },
+    {
+      "service": "Postgres",
+      "serviceId": "61393a6b-3d8e-4077-b270-b3db5a932166",
+      "deployment": "94042150-4b58-4c88-887b-b2389a86c37a",
+      "status": "SUCCESS",
+      "dockerfile": null,
+      "startCommand": null,
+      "healthcheckPath": null,
+      "restartPolicy": "ON_FAILURE",
+      "publicDomains": []
+    }
+  ],
+  "runtime": {
+    "service": "api",
+    "sourceMatchesCommit": true,
+    "runtime": {
+      "runtimeRole": "restricted",
+      "auditTampering": "denied",
+      "migrationMetadata": "denied",
+      "activeAdmins": 1,
+      "demoAccounts": 0,
+      "postgres": "18.6 (Debian 18.6-1.pgdg13+2)"
+    },
+    "privateHealth": {
+      "status": 200,
+      "database": "up"
+    }
+  },
+  "publicAssets": {
+    "service": "web",
+    "sourceMatchesCommit": true,
+    "containerAssetScan": {
+      "publicAssetScan": "passed",
+      "files": 15,
+      "suppliedSecretValues": 1
+    },
+    "publicAssetScan": {
+      "files": 16,
+      "bytes": 711916,
+      "suppliedSecretValues": 7,
+      "matches": 0
+    }
+  },
+  "smoke": {
+    "status": "passed",
+    "origin": "https://web-production-570f712c.up.railway.app",
+    "sourceCommit": "247aa02",
+    "checks": [
+      "HTTPS/database health; anonymous inventory 401 and wrong Origin 403",
+      "Existing admin login; Secure/HttpOnly/SameSite=Strict cookies",
+      "Browser venue creation persists to live DB",
+      "Browser screen create/edit/reload; normalized code; unknown hardware and disconnected CMS",
+      "MANUAL draft version and separately confirmed approval; current history",
+      "Explicit supersession; future UTC boundaries; current/latest distinction; original value/provenance preserved",
+      "Only smoke-owned screen/venue deactivated; immutable history/audit retained",
+      "Logout revokes session",
+      "TR/EN switch works; accessible language label used by corrected smoke selector",
+      "Desktop and 375px mobile; no page overflow or browser errors",
+      "Audit UI works; SMTP invitations remain disabled",
+      "Logout; previously-created smoke records remain inactive; no additional inventory writes"
+    ],
+    "ownedFixturesDeactivated": true,
+    "firstAttempt": {
+      "status": "stopped",
+      "cause": "Harness selected visible EN text instead of accessible language label",
+      "applicationChangeRequired": false,
+      "mutationsPassed": true
+    },
+    "followupHarnessCorrection": "Initial follow-up expected HTTP 201 for login; corrected to the API contract HTTP 200; no application change",
+    "followup": "Read-only completion on original inactive fixtures; no repeat create/approve"
+  },
+  "fixtureCleanup": {
+    "ownedScreensActive": 0,
+    "ownedVenuesActive": 0,
+    "ownedApprovedProfiles": 2,
+    "failedMigrations": 0
+  },
+  "visual": {
+    "desktopWidth": 1440,
+    "mobileWidth": 375,
+    "reviewed": true,
+    "mobileOverflow": false
+  },
+  "limitations": [
+    "Phase 0/Compose/deferred acceptance remains open",
+    "Backup archive list checked; restore rehearsal not performed",
+    "No CMS/player/proof-of-play or customer campaign operations",
+    "198 local tests are prior local evidence, not rerun against production",
+    "No Git remote push"
+  ],
+  "finalPublicHealth": {
+    "status": 200,
+    "database": "up"
+  }
+}

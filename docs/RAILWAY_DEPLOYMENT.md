@@ -1,4 +1,76 @@
-# Railway pilot yayını — 10 Kasım 2026
+# Railway pilot yayınları
+
+## 11 Kasım 2026 — manuel envanter yayını
+
+**Durum: canlı pilot yayını ve yayın sonrası kontroller başarılı.**
+Kullanıcı açıkça canlıya alma talimatı verdi. Kaynak commit `247aa02`;
+aynı `protarget` projesi/`production` ortamı kullanıldı, başka projeye
+dokunulmadı. Git remote push yapılmadı; temiz commit arşivi yüklendi.
+
+Public web: `https://web-production-570f712c.up.railway.app`.
+Gemi/ekran, CMS/OS metadata ve onaylı manuel çarpan geçmişi artık canlıdır;
+kampanya/booking/teslimat ve gerçek CMS/player bağlantısı hâlâ kapsam dışıdır.
+
+### Sıralı yayın ve kanıt
+
+| Adım | Sonuç |
+|---|---|
+| Release | `247aa02146612250a2213e1e501cb1ccc9f71040`; 202 tracked dosya, 12 özel değerle tarama, eşleşme 0 |
+| Yayın öncesi DB | PostgreSQL 18.6; 3 migration, başarısız migration 0, kanonik mükerrer ekran kodu 0 |
+| Yedek | 85.638 bayt PostgreSQL custom archive; `pg_restore --list` başarılı; restore tatbikatı yapılmadı |
+| Migration | `73d724b9-7f9d-4177-a07b-81dfa8b35526` — bütün aşamalar tamamlandı |
+| API | `99952375-2d85-4e7f-ab89-43d44922c425` — `SUCCESS`, özel health 200 |
+| Web | `de68631c-99f2-47c8-8414-e5b9e01f6133` — `SUCCESS`, HTTPS health 200 |
+| Postgres | Mevcut `94042150-4b58-4c88-887b-b2389a86c37a` korundu; yeniden oluşturulmadı |
+
+Altı migration'ın checksum'ı kaynakla birebir eşleşti; iki timing trigger'ı
+ve kanonik kod index'i doğrulandı. Eski inventory tabloları boştu; veri
+silinmedi. API `protarget_app` rolüyle çalışıyor; audit değişikliği ve migration
+metadata erişimi yok. Aktif admin 1, demo hesap 0. Bootstrap değişkenleri
+kapalı kaldı; mevcut admin parolası/secret'lar değiştirilmedi.
+API/web özel/public ağ ayrımı ve healthcheck ayarları korundu.
+
+Gerçek HTTPS/Chromium kontrolleri:
+
+- Admin login, Secure/HttpOnly/Strict cookies; anonim envanter 401,
+  yanlış Origin 403; logout sonrası 401.
+- Gemi/ekran formuyla oluşturma, düzenleme, yeniden açma; bilinmeyen
+  donanım alanları `null`, bağlantı “bağlı değil”.
+- Manuel taslak, ayrı onay, açık öncülü seçerek ileri tarihli sürümle
+  değiştirme; UTC tarihleri ve eski değer/kaynak korunması.
+- TR/EN, desktop ve 375 px mobil; yatay sayfa taşması/browser hatası yok.
+- Audit sayfası çalışıyor; SMTP daveti kapalı kalıyor.
+- Yalnız yayına ait bir smoke gemisi/ekranı pasifleştirildi; iki onaylı
+  sürümün geçmişi ve audit saklandı. Mevcut müşteri verisine test yazılmadı.
+- Canlıda sunulan 16 browser asset, 7 gerçek production secret değeriyle
+  tarandı; eşleşme 0. Container içindeki asset kontrolü de geçti.
+
+İlk smoke dil düğmesinin erişilebilir adını kullanmayan test seçicisinde
+durdu; ilk devam denemesi login'in 200 yerine 201 dönmesini bekledi.
+Yalnız özel test harness'i düzeltildi. Son salt-okunur devam aynı pasif
+fixture'larla geçti; uygulama düzeltmesi veya yeniden veri oluşturma
+gerekmedi. Başarısız denemeler başarılı suite olarak sayılmadı.
+
+Kanıt: `docs/verification/2026-11-11-railway-inventory/`.
+Yayın öncesi yedek kullanıcı makinesindeki gitignored
+`.local/backups/protarget-20261111-pre-inventory-247aa02.dump`
+dosyasındadır (dizin 0700, dosya 0600); Git'e veya build context'e eklenmedi.
+Bu manuel yedek otomatik yedek/restore politikasının yerine geçmez.
+
+### Geri dönüş ve açık kabul işleri
+
+Önceki API deployment'ı `350cad58-6562-480b-a78c-fc07c442e8d9`,
+web deployment'ı `a219b2c3-2a01-4c06-ba92-76d0f89f2e83`.
+Gerekirse bu sürümler Railway'de hedeflenerek geri alınmalıdır;
+`railway deployment redeploy` varsayılan olarak **en son** sürümü seçer.
+Uygulama geri dönüşü migration'ları/sonradan girilen veriyi geri almaz.
+Otomatik down-migration, production DB reset veya yedekten restore yapılmadı.
+
+Kullanıcının yayın onayı Faz 0 kabulünü kapatmaz. Compose runtime,
+restore tatbikatı, kalan production hardening ve deferred bulgular açık;
+sprint/kabul `review`, teknik implementation `done` kalır.
+
+## 10 Kasım 2026 — Faz 0 pilotu (tarihsel kayıt)
 
 Durum: **canlı pilot doğrulandı** — 10 Kasım 2026. Railway web/API/Postgres
 sağlıklı; gerçek HTTPS tarayıcı testi başarılı.

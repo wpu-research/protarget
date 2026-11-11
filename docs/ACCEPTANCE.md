@@ -1,5 +1,35 @@
 # Doğrulama kayıtları
 
+## Manuel envanter — 11 Kasım 2026 canlı pilot
+
+Kullanıcının açık yayın onayıyla `247aa02` Railway'e alındı.
+Yedek → migration → API health → web health → gerçek HTTPS/Chromium
+kontrolleri tamamlandı. Altı migration'ın checksum'ları kaynakla eşleşti;
+başarısız migration yok. Runtime rolü kısıtlı, aktif yönetici 1,
+demo kullanıcı 0; mevcut parola/kimlik bilgileri değiştirilmedi.
+
+Gemi/ekran oluşturma, düzenleme ve yeniden açma; bilinmeyen donanım;
+manuel çarpan taslağı/onayı; açık öncülün ileri tarihli sürümle kapatılması;
+geçerli/son sürüm ayrımı ve eski değerlerin korunması canlıda doğrulandı.
+TR/EN, 375 px mobil, audit sayfası, kapalı SMTP daveti ve çıkış geçti.
+Yalnız smoke'a ait bir gemi ve bir ekran oluşturulup pasifleştirildi;
+iki onaylı çarpanın geçmişi ve audit kayıtları silinmedi. Gerçek CMS/player
+veya müşteri kampanyasına işlem yapılmadı.
+
+İlk tarayıcı turu dil düğmesini erişilebilir adı yerine `EN` metniyle arayan
+harness seçicisinde durdu. İlk salt-okunur devam denemesi de login için
+yanlış HTTP 201 bekledi; sözleşmedeki 200'e düzeltildi. Uygulama değişmedi;
+son devam turu aynı pasif fixture'larla geçti. Bu denemeler tek, kesintisiz
+başarılı suite diye raporlanmaz. Önceki **198 yerel test** canlıda tekrar
+çalıştırılmış sayılmaz.
+
+202 tracked dosyalık release 12 özel değerle, canlıdaki 16 public asset
+7 gerçek production değeriyle tarandı; eşleşme yok. Yedek arşivi okunabilir
+olarak doğrulandı; restore tatbikatı yapılmadı. Faz 0/Compose, genel
+production hardening ve deferred kabul işleri açık; sprint `review`.
+Deployment kimlikleri, rollback sınırı ve kanıtlar:
+`RAILWAY_DEPLOYMENT.md`, `verification/2026-11-11-railway-inventory/`.
+
 ## Manuel envanter — 10 Kasım 2026
 
 Branch: `story/inventory-manual-multipliers`; baseline: `dea05dcc`.
