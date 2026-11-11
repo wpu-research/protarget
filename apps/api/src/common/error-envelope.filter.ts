@@ -13,6 +13,20 @@ const STATUS_CODES: Record<number, string> = {
   429: 'RATE_LIMITED',
 };
 
+/** Loggable shape of an unexpected error. The message is deliberately dropped: SMTP/Prisma
+ * messages may embed credentials, tokens or query values. Frames carry only code locations.
+ */
+export function describeError(error: unknown): { errorName: string; errorCode?: string; frames: string[] } {
+  if (!(error instanceof Error)) return { errorName: typeof error, frames: [] };
+  const code = (error as { code?: unknown }).code;
+  return {
+    errorName: error.constructor?.name || error.name || 'Error',
+    ...(typeof code === 'string' && /^[A-Za-z0-9_]{1,40}$/.test(code) ? { errorCode: code } : {}),
+    frames: (error.stack ?? '').split('\n').map(line => line.trim())
+      .filter(line => line.startsWith('at ')).slice(0, 8),
+  };
+}
+
 /** Tüm hataları Spec v2 §33 zarfına çevirir: { error: { code, message, details } } */
 @Catch()
 export class ErrorEnvelopeFilter implements ExceptionFilter {
@@ -42,7 +56,8 @@ export class ErrorEnvelopeFilter implements ExceptionFilter {
     } else {
       // Never serialize arbitrary errors: SMTP/Prisma messages may contain credentials or tokens.
       const requestId = host.switchToHttp().getRequest().requestId;
-      console.error(JSON.stringify({ level: 'error', msg: 'request failed', requestId }));
+      // Diagnostics without the message: class name, driver code and stack frames only.
+      console.error(JSON.stringify({ level: 'error', msg: 'request failed', requestId, ...describeError(exception) }));
     }
 
     res.status(status).json(body);

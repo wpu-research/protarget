@@ -7,7 +7,7 @@ import {
 /**
  * Google Ad Manager — YALNIZCA İSKELET.
  * GAM'in pDOOH envanteri için uygunluğu ve Deal ID'yi hangi sistemin üreteceği
- * partner hesabı bazında doğrulanmadan gerçek çağrı yazılmaz (bkz. docs/CONNECTORS.md).
+ * partner hesabı bazında doğrulanmadan gerçek çağrı yazılmaz (bkz. docs/MVP_DECISIONS.md).
  */
 export class GamConnector implements DealConnector {
   readonly key = 'GAM';

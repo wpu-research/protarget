@@ -21,6 +21,13 @@ export class AuthRateLimitService {
           CURRENT_TIMESTAMP - (${windowSeconds} * interval '1 second')
           THEN CURRENT_TIMESTAMP ELSE "auth_rate_limits"."startedAt" END
       RETURNING "count"`;
+    // Opportunistic pruning keeps the table bounded without a scheduler. The longest window is
+    // 15 minutes, so day-old buckets can never affect a decision. Failure must not block auth.
+    if (Math.random() < 0.02) {
+      await this.db.$executeRaw`
+        DELETE FROM "auth_rate_limits" WHERE "startedAt" < CURRENT_TIMESTAMP - interval '1 day'`
+        .catch(() => undefined);
+    }
     if (rows[0].count > limit) throw new ApiError(429, 'RATE_LIMITED', 'Too many attempts; try again later');
   }
 }

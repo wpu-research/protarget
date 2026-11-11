@@ -9,7 +9,8 @@ const log = (level: string, msg: string, extra: Record<string, unknown> = {}): v
 
 /**
  * Periyodik işler (Spec v2 §36). Sıklıklar ileride settings tablosundan okunacak.
- * İşleyiciler henüz yazılmadı: her iş alındığında "not implemented" loglanır ve başarısız sayılmaz.
+ * İşleyiciler henüz yazılmadı: periyodik "tick" işleri loglanıp geçilir; başka her iş
+ * NOT_IMPLEMENTED ile başarısız olur (sessizce yutulmaz). Biten işler Redis'te birikmez.
  */
 const REPEATABLE: Partial<Record<QueueName, number>> = {
   [QUEUES.OFFLINE_SCREEN_DETECTOR]: 60_000,
@@ -36,8 +37,10 @@ async function main(): Promise<void> {
         name,
         async (job: Job) => {
           log('warn', 'job handler not implemented', { queue: name, job: job.name, id: job.id });
+          // Scheduler ticks are harmless no-ops. Real work must fail visibly, never vanish.
+          if (job.name !== 'tick') throw new Error('NOT_IMPLEMENTED');
         },
-        { connection },
+        { connection, removeOnComplete: { count: 100 }, removeOnFail: { count: 1000 } },
       ),
     );
   }

@@ -4,6 +4,7 @@ import { OrganizationType, Role } from '@prisma/client';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { compatibleRole } from '../src/common/identity';
 import { redact } from '../src/common/redact';
+import { describeError } from '../src/common/error-envelope.filter';
 import { validateEnvironment } from '../src/common/runtime-config';
 import { AcceptInviteDto, LoginDto } from '../src/modules/auth/auth.dto';
 import { readCookie, issueAccess, verifyAccess, hashToken } from '../src/modules/auth/tokens';
@@ -18,6 +19,16 @@ import type { AuditService } from '../src/modules/audit/audit.service';
 
 describe('Phase 0 security primitives', () => {
   const secret = randomBytes(48).toString('base64url');
+  it('describes unexpected errors for logs without their message', () => {
+    const error = Object.assign(new TypeError(`connect failed for password=${secret}`), { code: 'P1001' });
+    const described = describeError(error);
+    expect(described).toMatchObject({ errorName: 'TypeError', errorCode: 'P1001' });
+    expect(described.frames.length).toBeGreaterThan(0);
+    expect(JSON.stringify(described)).not.toContain(secret);
+    expect(describeError('boom')).toEqual({ errorName: 'string', frames: [] });
+    expect(describeError(Object.assign(new Error('x'), { code: `bad ${secret}` })).errorCode).toBeUndefined();
+  });
+
   it('recursively redacts secret keys, bearer values, JWTs and URL tokens', () => {
     const access = issueAccess(secret, randomUUID(), randomUUID());
     const value = redact({ nested: [{ passwordHash: 'hash', mfaSecret: 'secret', refreshToken: 'raw' }],

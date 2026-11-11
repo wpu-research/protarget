@@ -6,7 +6,8 @@
     "dev": "next dev -p ${WEB_PORT:-3100} -H ${WEB_HOST:-127.0.0.1}",
     "build": "next build",
     "start": "next start -p ${PORT:-${WEB_PORT:-3100}} -H ${WEB_HOST:-127.0.0.1}",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test ../../infra/railway/proxy-address.test.mjs"
   },
   "dependencies": {
     "@protarget/i18n": "workspace:*",

@@ -115,8 +115,11 @@ pnpm local openapi
   kaydedebileceği için browser trace kapalıdır.
 - Ayrıntılı sonuçlar: `docs/ACCEPTANCE.md`.
 - Üçlü incelemenin ertelenen düzeltmeleri:
-  `_bmad-output/implementation-artifacts/deferred-work.md`. 1 yüksek önem
-  dereceli proxy rate-limit riski dahil 13 bulgu kayıtlı; CR temiz değildir.
+  `_bmad-output/implementation-artifacts/deferred-work.md`. Yüksek önemli
+  proxy rate-limit bulgusu (F0-001) `096bc8e` ile kapatıldı; F0-005/006/009/
+  010/012 açık, F0-011 kısmi, R2-03…08 ertelendi. CR temiz değildir.
+- `pnpm test` web proxy imza testini de (`infra/railway/proxy-address.test.mjs`)
+  çalıştırır; Node 24 gerekir.
 
 ## Kapsam dışı / sınırlamalar
 
@@ -128,16 +131,18 @@ pnpm local openapi
 - Support yalnız `/me` ve `/health`; ajans/marka yalnız kendi kurumunu okur.
 - Finansal görünürlük tercihleri kaydedilir; henüz finansal rapor/API yoktur.
 - MFA sonraki güvenlik fazında; MFA etkin hesaplar mevcut girişten reddedilir.
-- Reverse proxy istemci IP başlıklarını güvenli biçimde doğrulayan bir katman
-  henüz yoktur. Auth IP limiti web proxy arkasında ortak IP üzerinde çalışır;
-  üretim kapasitesi ve güvenilir proxy zinciri ayrıca tasarlanmalıdır.
+- İstemci IP'si yalnız Railway ingress'i arkasında güvenilirdir: web geçidi
+  `X-Real-IP` değerini `PROXY_SHARED_SECRET` ile imzalar, API imzasız başlığı
+  reddeder. `TRUSTED_INGRESS` boşken (yerel) auth IP limiti doğrudan bağlantı
+  adresiyle çalışır; başka bir proxy zinciri ayrıca tasarlanmalıdır.
 - Eski `pnpm dev` env loader'a henüz bağlı değildir (F0-005); yukarıdaki
   `pnpm local api/web` yolunu kullanın. Davet ekranında dil değişimi tam
   reload nedeniyle bağlantıyı yeniden açmayı gerektirir (F0-004).
 - Redis Faz 0 iş akışında kullanılmaz. MinIO/ClamAV opsiyonel profildir.
   MinIO için onaylı, yerelde oluşturulmuş `MINIO_IMAGE` sağlanmadan `storage`
   profilini açmayın. Bu profillerin runtime doğrulaması yapılmadı.
-- `infra/docker-compose.yml` eski altyapı iskelesidir; **kök Compose dosyasını**
-  kullanın. Volume silme/reset komutları kurulum adımı değildir.
+- Tek Compose dosyası kökteki `docker-compose.yml`'dir (eski
+  `infra/docker-compose.yml` iskelesi kaldırıldı). Volume silme/reset komutları
+  kurulum adımı değildir.
 - Image digest sabitleme, bağımlılık güvenlik taraması, TLS, yedekleme ve gerçek
   SMTP teslimatı production release öncesi ayrıca doğrulanmalıdır.
