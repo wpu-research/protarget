@@ -1,5 +1,12 @@
 # Railway pilot yayınları
 
+## 12 Kasım 2026 — Filo / 3D Adalar sahnesi (yalnız web)
+
+Kaynak commit `eb44ba4` (`story/fleet-adalar`). Temiz `git archive` klasöründen `railway up --service web`;
+API, migration ve veriye dokunulmadı. Web `355797ca-adc6-4957-9ec7-23de64a74310` (`SUCCESS`). Kimliksiz kontroller:
+`/api/v1/health` 200, `/api/v1/fleet/scene` 401, `/admin/fleet` 307. Admin girişli canlı bakış yapılmadı.
+Geri dönüş: önceki web `224cfe9c-b76d-4373-886f-d24efc38d965`.
+
 ## 12 Kasım 2026 — Filo / 3D yayını
 
 Kullanıcı "şu anki hali canlıya al" dedi. Kaynak commit `dc3b32f` (`story/fleet-3d`;
