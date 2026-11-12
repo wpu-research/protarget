@@ -22,11 +22,34 @@ geçici klasörden yapıldı; başka projeye dokunulmadı.
 Dış HTTPS kontrolleri (kimliksiz): kampanya/kreatif/ekran uçları 401, yanlış
 Origin ile `POST /api/v1/creatives` 403, `/login` 200, `/admin` 307 (girişe).
 
-**Yapılmayanlar (başarılı sayılmaz):** admin girişli canlı smoke (kampanya
-oluşturma, gerçek kreatif yükleme uygulama üzerinden, ~200 MB yükleme, tarayıcı
-TR/EN/mobil kontrolü) çalıştırılmadı; giriş bilgileri bu oturumda okunmadı.
-Yedekten restore, migration yükseltme tatbikatı ve gerçek ağ takılması testi
-yapılmadı. D8–D23 defer'ları açık.
+### Admin girişli canlı smoke (12 Kasım 2026, aynı gün)
+
+Kullanıcı kendi oturumunu yerleşik tarayıcı panelinde açtı (parola girişi
+otomasyonla yapılmadı; giriş dosyası okunmadı) ve test verisi oluşturulmasına
+açıkça izin verdi. Üretimde gerçek HTTPS üzerinden denenenler:
+
+- Kampanya sihirbazı: temel adım, ekran ekleme (çarpan 1.0000, çalışma saati
+  08:00–22:00, loop 60 sn/slot 10 sn), hedef, kreatif bağlama, 7 günlük plan,
+  özet; engel varken "Hazır yap" engelli, engel 0 iken DRAFT→READY.
+- Kreatif (yalnız PNG): 1920×1080 yükleme, ffprobe ölçümü, sha256; dosya
+  `GET /creatives/:id/file` ile S3 bucket'tan geri okundu (2.081.907 bayt,
+  `image/png`, sha256 yüklenenle aynı); admin onayı; aynı içerik farklı adla
+  yüklenince mükerrer reddi; geri çekilmiş içeriğin yeniden yüklenmesine REVOKED'a
+  özel ret mesajı.
+- CMS işlem kaydı: gelecekteki ve booking öncesi zaman reddedildi; geçerli
+  `CMS_UPLOADED` beyanı kaydedildi. Beyan yokken LIVE engelliydi, beyandan sonra
+  READY→LIVE→PAUSED (gerekçeyle)→CANCELLED çalıştı.
+- PAUSED booking'de bağlı kreatif geri çekilince "bağlı kreatiflerden biri geri
+  çekildi" uyarısı çıktı ve önceki CMS beyanı eskidi (yeniden beyan istendi).
+
+Test verisi üretimde kalıcıdır: `CMP-2026-0001`/`0002` (iptal), `CR-2026-00001`/
+`00002` (geri çekildi), "SMOKE TEST Reklamveren", "SMOKE TEST Gemi" ve
+`SMOKE-TEST-01` ekranı (hepsi pasif), ekran için onaylı 1.0000 çarpan sürümü.
+Denetim kaydı silinmez. Eski `DEPLOY-…` kaydına dokunulmadı.
+
+**Yapılmayanlar (başarılı sayılmaz):** ~200 MB yükleme, MP4/video yükleme,
+tarayıcıda TR/EN/mobil kontrolü, yedekten restore, migration yükseltme
+tatbikatı ve gerçek ağ takılması testi. D8–D23 defer'ları açık.
 
 Geri dönüş: önceki API `99952375-2d85-4e7f-ab89-43d44922c425`, web
 `de68631c-99f2-47c8-8414-e5b9e01f6133` (Railway'de hedeflenerek;

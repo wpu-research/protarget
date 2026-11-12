@@ -4,7 +4,8 @@ Story: `story/campaign-booking` (spec:
 `_bmad-output/implementation-artifacts/tech-spec-campaign-booking.md`).
 **12 Kasım 2026'da Railway'e yayımlandı** (`c2ca020`; ayrıntı ve kısıtlar
 `RAILWAY_DEPLOYMENT.md`). Kreatif depolaması Railway bucket'ıdır (`STORAGE_DRIVER=s3`);
-admin girişli canlı smoke ve ~200 MB yükleme henüz yapılmadı.
+admin girişli canlı smoke aynı gün PNG ile yapıldı (S3 yazma/okuma, mükerrer,
+REVOKED, READY→LIVE→PAUSED→CANCELLED); ~200 MB ve MP4 yükleme henüz yapılmadı.
 
 Bu modül operatörün kampanyayı panelde hazırlayıp mevcut CMS'ye **elle**
 yüklediği MVP modelini destekler. Panelde “Yayında / Durduruldu” kaydı ve CMS
@@ -90,9 +91,9 @@ sunulur; imzalı/herkese açık URL yoktur.
 
 ## Bilinen sınırlar
 
-- Gerçek S3/bucket bağlantısı ve Compose `storage` profili bu ortamda
-  **çalıştırılamadı** (Docker soketi yok); S3 sürücüsü sahte istemciyle birim
-  testinden geçti.
+- Compose `storage` profili bu ortamda **çalıştırılamadı** (Docker soketi yok).
+  Railway bucket'ı üzerinde gerçek S3 yazma/okuma 12 Kasım 2026'da küçük bir
+  PNG ile canlıda doğrulandı; ~200 MB, MP4 ve ağ kesintisi senaryoları denenmedi.
 - Antivirüs taraması, otomatik tamamlama, kapasite/pacing formülü, ajans/marka
   görünürlüğü ve teslimat girişi kapsam dışıdır.
 - Depolamaya yazma DB işleminden önce yapılır; işlem düşerse nesne silinir,
