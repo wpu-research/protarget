@@ -422,8 +422,12 @@ function ScreenTile({ screen, ads }: { screen: InventoryScreen; ads: ScreenAd[] 
   const src = current?.creative ? `/api/v1/creatives/${current.creative.id}/file` : '';
   return <article className={`screen-tile${screen.active ? '' : ' inactive'}${portrait ? ' portrait' : ''}`} data-screen-id={screen.screenId}>
     <div className="monitor" style={{ aspectRatio: ratio }}>
-      {current?.creative?.kind === 'VIDEO' && <video key={src} src={src} muted playsInline preload="metadata"
-        loop={withMedia.length < 2} autoPlay onEnded={() => setIndex(value => value + 1)}
+      {current?.creative?.kind === 'VIDEO' && <video key={src} src={`${src}#t=0.1`} muted playsInline preload="metadata" tabIndex={0}
+        loop={withMedia.length < 2} onEnded={() => setIndex(value => value + 1)}
+        onMouseEnter={event => { void event.currentTarget.play().catch(() => undefined); }}
+        onFocus={event => { void event.currentTarget.play().catch(() => undefined); }}
+        onMouseLeave={event => event.currentTarget.pause()} onBlur={event => event.currentTarget.pause()}
+        onClick={event => { const video = event.currentTarget; if (video.paused) void video.play().catch(() => undefined); else video.pause(); }}
         aria-label={`${text('creative.preview')} ${current.creative.code}`} />}
       {current?.creative?.kind === 'IMAGE' && <img key={src} src={src} alt={`${text('creative.preview')} ${current.creative.code}`} />}
       {!current && <span className="monitor-empty">{text(ads.length ? 'inventory.adNoMedia' : 'inventory.adNone')}</span>}
