@@ -1,5 +1,17 @@
 # Railway pilot yayınları
 
+## 12 Kasım 2026 — kampanya sertleştirme + ekran kartları/duvarı (`main` `c443303`)
+
+Kullanıcı "hepsini commitle canlıya al" dedi. `story/campaign-hardening` (`5c1bfd5`) ve
+`story/inventory-screens-cards` (`7f73907`) `main`'e birleştirildi (`c443303`); bu iki dal için ayrı
+BMAD CR turu yapılmadı. Yayın öncesi `main` üzerinde: typecheck, lint, build 8/8; birim 142 API + 24 web;
+entegrasyon 97 — hepsi geçti. **Çalıştırılmadı:** Playwright E2E, admin girişli canlı smoke.
+Migration yok, veritabanına dokunulmadı, yedek alınmadı.
+API `495d5e05-e88b-4d2d-81e4-58b132b8525d` (`SUCCESS`, 3D filo oturumu aynı commit'ten yükledi), web
+`d55b3b28-ab35-4bd4-ab1d-6f82a0365548` (`SUCCESS`, temiz `git archive` klasöründen `railway up --service web`).
+Kimliksiz kontroller: `/api/v1/health` 200, `/login` 200, `/admin` 307, kampanya/kreatif/filo uçları 401.
+Geri dönüş: önceki API `d6313a45-896f-42d1-90c1-9f402411d8ba`, web `355797ca-adc6-4957-9ec7-23de64a74310`.
+
 ## 12 Kasım 2026 — Filo / 3D Adalar sahnesi (yalnız web)
 
 Kaynak commit `eb44ba4` (`story/fleet-adalar`). Temiz `git archive` klasöründen `railway up --service web`;
