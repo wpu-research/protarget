@@ -8,6 +8,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { VenuesModule } from './modules/venues/venues.module';
 import { ScreensModule } from './modules/screens/screens.module';
+import { FleetModule } from './modules/fleet/fleet.module';
 import { MultipliersModule } from './modules/multipliers/multipliers.module';
 import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { CreativesModule } from './modules/creatives/creatives.module';
@@ -34,6 +35,7 @@ import { OpsModule } from './modules/ops/ops.module';
     SettingsModule,
     VenuesModule,
     ScreensModule,
+    FleetModule,
     MultipliersModule,
     CampaignsModule,
     CreativesModule,

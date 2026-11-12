@@ -1,5 +1,22 @@
 # Railway pilot yayınları
 
+## 12 Kasım 2026 — Filo / 3D Adalar sahnesi (yalnız web)
+
+Kaynak commit `eb44ba4` (`story/fleet-adalar`). Temiz `git archive` klasöründen `railway up --service web`;
+API, migration ve veriye dokunulmadı. Web `355797ca-adc6-4957-9ec7-23de64a74310` (`SUCCESS`). Kimliksiz kontroller:
+`/api/v1/health` 200, `/api/v1/fleet/scene` 401, `/admin/fleet` 307. Admin girişli canlı bakış yapılmadı.
+Geri dönüş: önceki web `224cfe9c-b76d-4373-886f-d24efc38d965`.
+
+## 12 Kasım 2026 — Filo / 3D yayını
+
+Kullanıcı "şu anki hali canlıya al" dedi. Kaynak commit `dc3b32f` (`story/fleet-3d`;
+**CR yapılmadı, `main`'e merge edilmedi**). Temiz `git archive` klasöründen `railway up`
+(`protarget`/`production`; yalnız `api` ve `web`). Migration yok, veritabanına dokunulmadı,
+yedek alınmadı. API `d6313a45-896f-42d1-90c1-9f402411d8ba`, web `224cfe9c-b76d-4373-886f-d24efc38d965`
+(`SUCCESS`). Kimliksiz dış kontroller: `/api/v1/health` 200, `/api/v1/fleet/scene` 401, `/admin/fleet` girişe yönlenir.
+**Yapılmadı:** admin girişli canlı smoke, Playwright, entegrasyon testi, `docs/openapi.json` yenileme.
+Geri dönüş: önceki API `41737c24-c9d1-4b3d-8a71-49ad995a57f7`, web `cae37cd7-b4b7-4b62-8536-7938c52b8a39`.
+
 ## 12 Kasım 2026 — kampanya/booking yayını
 
 **Durum: canlı; yayın sonrası kontroller kısmen yapıldı (aşağıya bakın).**
