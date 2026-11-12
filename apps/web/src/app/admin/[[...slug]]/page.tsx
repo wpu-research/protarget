@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -12,6 +12,7 @@ import { CampaignList } from '@/components/Campaigns';
 import { CampaignWizard } from '@/components/CampaignWizard';
 import { CampaignDetailView } from '@/components/CampaignDetail';
 import { Creatives } from '@/components/Creatives';
+import { FleetView } from '@/components/fleet/FleetView';
 import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory } from '@/components/Inventory';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
@@ -36,6 +37,14 @@ export default async function AdminPage({ params, searchParams }: {
   const search = await searchParams;
   const page = pageNumber(search.page);
   if (path === '/admin/inventory') redirect('/admin/inventory/venues');
+  if (slug[0] === 'fleet') {
+    if (slug.length > 1) notFound();
+    const includeInactive = search.inactive === 'true';
+    const scene = await serverApi<FleetScene>(`/fleet/scene${includeInactive ? '?includeInactive=true' : ''}`);
+    return <><p className="eyebrow">{t('nav.inventory', language)}</p><h1>{t('nav.fleet', language)}</h1>
+      <p className="page-description">{t('fleet.description', language)}</p>
+      <FleetView scene={scene} includeInactive={includeInactive} /></>;
+  }
   if (slug[0] === 'inventory') {
     const kind = slug[1];
     if (kind !== 'venues' && kind !== 'screens') notFound();

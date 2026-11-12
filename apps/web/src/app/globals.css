@@ -83,3 +83,41 @@ progress{width:100%;height:12px;accent-color:var(--accent)}
 .badge.creative-revoked{background:#fbe9c7;color:#7a4e0c}.badge[data-state=stale]{white-space:normal}
 .issue-inline{display:block;color:#7a4e0c;margin-top:4px;overflow-wrap:anywhere}.plain-list{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
 .activity-meta{display:grid;gap:4px;margin:8px 0 0;font-size:11px}.activity-meta dd{margin:0;overflow-wrap:anywhere}.activity-meta dt{font-weight:650}
+
+/* Fleet / 3D */
+.fleet{min-width:0;display:grid;gap:14px}.fleet>*{min-width:0}
+.fleet-stage{position:relative;height:clamp(460px,72vh,780px);border-radius:14px;overflow:hidden;background:#9fb7c2;border:1px solid var(--border);touch-action:none;isolation:isolate}
+.fleet[data-mode=interior] .fleet-stage{touch-action:none;cursor:grab}
+.fleet-stage canvas{display:block;outline:none}
+.fleet-loading,.fleet-fallback{position:absolute;inset:0;display:grid;place-items:center;margin:0;padding:24px;text-align:center;color:#183239;background:#dfe9ed;font-size:14px}
+.fleet-overlay{position:absolute;z-index:3;display:flex;gap:8px;align-items:flex-start;pointer-events:none;max-width:calc(100% - 24px)}
+.fleet-overlay>*{pointer-events:auto}
+.fleet-overlay.top-left{top:12px;left:12px;flex-direction:column;align-items:flex-start;gap:4px;pointer-events:none}
+.fleet-overlay.top-right{top:12px;right:12px;align-items:center}
+.fleet-overlay.top-center{top:12px;left:50%;transform:translateX(-50%);background:#183239d9;color:#ecf0e8;border-radius:999px;padding:6px 14px;font-size:12px;pointer-events:none;white-space:nowrap;max-width:calc(100% - 24px);overflow:hidden;text-overflow:ellipsis}
+.fleet-overlay.bottom-left{left:12px;bottom:12px;background:#183239d9;color:#ecf0e8;border-radius:8px;padding:7px 11px;font-size:12px;pointer-events:none;max-width:min(520px,calc(100% - 24px))}
+.fleet-overlay.bottom-right{right:12px;bottom:12px;background:#183239d9;color:#ecf0e8;border-radius:8px;padding:7px 11px;font-size:12px;pointer-events:none}
+.fleet-badge{background:#fbe9c7;color:#6b4208;border:1px solid #e9cf9a;border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700}
+.fleet-subnote{background:#fafcf8cc;color:var(--muted);border-radius:5px;padding:2px 7px;font-size:10px}
+.fleet-quality{display:flex;align-items:center;gap:6px;background:#fafcf8e6;border-radius:7px;padding:4px 8px;font-size:11px;font-weight:650}
+.fleet-quality select{border:1px solid #c9d6cd;border-radius:5px;background:white;padding:3px 4px;font-size:11px}
+.fleet-overlay.bottom-pad{right:12px;bottom:12px;display:grid;grid-template-columns:repeat(3,48px);grid-template-rows:repeat(2,48px);gap:6px;touch-action:none}
+.fleet-overlay.bottom-right{bottom:12px}
+.pad{width:48px;height:48px;border-radius:10px;border:1px solid #ffffff66;background:#183239cc;color:white;font-size:16px;touch-action:none;user-select:none}
+.pad:active{background:#205f50}.pad-forward{grid-column:2;grid-row:1}.pad-left{grid-column:1;grid-row:2}.pad-back{grid-column:2;grid-row:2}.pad-right{grid-column:3;grid-row:2}
+.fleet-ship-label,.fleet-bridge-label{display:inline-block;white-space:nowrap;border-radius:6px;font-weight:700;user-select:none}
+.fleet-ship-label{background:#183239e6;color:#ecf0e8;padding:3px 9px;font-size:12px;border:1px solid #ffffff55;transform:translateY(-4px)}
+.fleet-ship-label.active{background:var(--accent);border-color:var(--lime)}.fleet-ship-label.inactive{background:#5a6468e6;font-weight:500}
+.fleet-bridge-label{background:#fafcf8cc;color:#233b40;padding:2px 8px;font-size:11px;transform:translateY(-14px)}
+.fleet-note{margin:0}
+.fleet-panels{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
+.fleet-ship-list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.fleet-ship-list>li{border:1px solid var(--border);border-radius:10px;padding:12px;background:#fbfcfa}.fleet-ship-list>li.current{border-color:var(--accent);background:#eef6e6}
+.fleet-ship-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.fleet-ship-head small{display:block;color:var(--muted);font-size:11px}
+.fleet-ship-head .badge{margin-left:6px}
+.fleet-ship-list details ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px;max-height:260px;overflow:auto}
+.link-button{background:none;border:0;padding:5px 6px;text-align:left;width:100%;border-radius:6px;color:var(--ink);font-size:12px}.link-button:hover,.link-button[aria-pressed=true]{background:#e8eee3}
+.fleet-declarations{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:10px}.fleet-declarations li{border:1px solid var(--border);border-radius:8px;padding:10px;display:grid;gap:3px}.fleet-declarations small{color:var(--muted);font-size:11px}
+.fleet-detail .identity-grid{grid-template-columns:140px 1fr;gap:6px 12px;margin-bottom:12px}
+@media(max-width:900px){.fleet-panels{grid-template-columns:1fr}.fleet-stage{height:clamp(380px,62vh,560px)}.fleet-overlay.top-center{top:56px}}
+@media(max-width:720px){.fleet-overlay.bottom-left{bottom:76px;font-size:11px}.fleet-detail .identity-grid{grid-template-columns:1fr}}

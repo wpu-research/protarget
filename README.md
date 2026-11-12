@@ -7,6 +7,8 @@ gemi/ekran, çarpan ve TR/EN/mobil kontrolleri geçti. Yayın kanıtı:
 `docs/RAILWAY_DEPLOYMENT.md`. Faz 0'ın Compose kabulü ve ertelenen işleri
 açık kalır; tam üretim kabulü sayılmaz.
 
+**Filo / 3D (yerel, `story/fleet-3d`):** admin için Boğaz simülasyonunda gemi/ekran görünümü; konum simülasyondur, durumlar operatör beyanıdır. Bkz. `docs/FLEET.md`.
+
 **Kampanya/booking (yerel, `story/campaign-booking`, yayımlanmadı):** yalnız
 admin için booking sihirbazı, kreatif yükleme (MP4/H.264, PNG, JPEG; ffprobe +
 sha256 + ayrı onay), ekran/tarih/hedef/ticari plan, sade durum makinesi ve

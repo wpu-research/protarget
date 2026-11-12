@@ -5,3 +5,4 @@ export * from './queues';
 export * from './foundation';
 export * from './inventory';
 export * from './campaigns';
+export * from './fleet';
