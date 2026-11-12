@@ -56,13 +56,17 @@ export async function inventoryTransaction<T>(db: PrismaService, work: (tx: Pris
   }
 }
 
-/** Postgres CHECK/trigger violations (SQLSTATE 23514) surface from Prisma as unknown/raw errors, sometimes
- * only inside the message; the database text itself is never exposed. */
+/** Postgres CHECK/trigger violations (SQLSTATE 23514). Verified against real Prisma 6 errors (integration test D11):
+ *  - `$executeRaw*`/`$queryRaw*`: PrismaClientKnownRequestError P2010 with `meta.code === '23514'`;
+ *  - model API (`create`/`update`…): PrismaClientUnknownRequestError, no code/meta; the engine text carries
+ *    `PostgresError { code: "23514", ...`. A bare number in the message is NOT enough (the text embeds the
+ *    failing row, so user data such as "23514" could appear in an unrelated error).
+ * The database text itself is never exposed. */
+const ENGINE_CHECK_VIOLATION = /PostgresError \{ code: "23514"/;
 export function isCheckViolation(error: unknown): boolean {
   if (error instanceof ApiError) return false;
-  const e = error as { code?: unknown; meta?: { code?: unknown; message?: unknown }; message?: unknown } | null;
+  const e = error as { code?: unknown; meta?: { code?: unknown }; message?: unknown } | null;
   if (!e || typeof e !== 'object') return false;
   if (e.code === '23514' || e.meta?.code === '23514') return true;
-  const isPrisma = error instanceof Prisma.PrismaClientUnknownRequestError || error instanceof Prisma.PrismaClientKnownRequestError;
-  return isPrisma && /\b23514\b|violates check constraint|SQLSTATE\W+23514/i.test(String(e.message ?? '') + String(e.meta?.message ?? ''));
+  return error instanceof Prisma.PrismaClientUnknownRequestError && ENGINE_CHECK_VIOLATION.test(String(e.message ?? ''));
 }

@@ -1,5 +1,4 @@
-import { tmpdir } from 'node:os';
-import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res, StreamableFile, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, Post, Query, Req, Res, StreamableFile, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBody, ApiConsumes, ApiCookieAuth, ApiCreatedResponse, ApiOkResponse, ApiProduces, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
@@ -11,6 +10,7 @@ import { LowerUuidPipe } from '../../common/inventory-validation';
 import { Roles } from '../auth/auth.policy';
 import { CreativePageDto, CreativeQueryDto, CreativeResponseDto, RejectCreativeDto, RevokeCreativeDto, UploadCreativeDto } from './creatives.dto';
 import { CreativesService, UploadedFile as UploadedTemp } from './creatives.service';
+import { ensureUploadDir, UploadRateLimitGuard } from './upload-guard';
 
 /** RFC 6266/5987: ASCII fallback plus an RFC 5987 `filename*` where `'()*` are percent-encoded too. */
 export function contentDisposition(filename: string): string {
@@ -19,10 +19,11 @@ export function contentDisposition(filename: string): string {
   return `inline; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
-/** Guards run before this interceptor, so unauthenticated/non-admin requests never write a temp file.
- * Nest's FileInterceptor removes the temp file when a later pipe/handler fails; the service removes it on success. */
+/** Guards run before this interceptor: the global AuthGuard (JWT, DB session, ADMIN role) and the per-admin rate
+ * limit both pass before any byte is written, so unauthenticated/non-admin requests never create a temp file.
+ * Files land in a dedicated directory that `UploadSweeper` empties of leftovers (D6). Nest's FileInterceptor removes the temp file when a later pipe/handler fails; the service removes it on success. */
 const upload = FileInterceptor('file', {
-  storage: diskStorage({ destination: tmpdir() }),
+  storage: diskStorage({ destination: (_req, _file, done) => done(null, ensureUploadDir()) }),
   limits: { fileSize: CREATIVE_MAX_BYTES, files: 1, fields: 5, fieldSize: 1024 },
   defParamCharset: 'utf8',
 });
@@ -35,7 +36,7 @@ export class CreativesController {
   list(@Req() req: AuthRequest, @Query() query: CreativeQueryDto): Promise<CreativePageDto> {
     return this.creatives.list(req.principal, query);
   }
-  @Post() @Roles(Role.ADMIN) @UseInterceptors(upload) @ApiConsumes('multipart/form-data')
+  @Post() @Roles(Role.ADMIN) @UseGuards(UploadRateLimitGuard) @UseInterceptors(upload) @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', required: ['file', 'advertiserId'], properties: {
     file: { type: 'string', format: 'binary', description: 'MP4 (H.264), PNG or JPEG; at most 200 MB.' },
     advertiserId: { type: 'string', format: 'uuid' },

@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p ${PORT:-${WEB_PORT:-3100}} -H ${WEB_HOST:-127.0.0.1}",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test ../../infra/railway/proxy-address.test.mjs test/fleet-sim.test.mjs"
+    "test": "node --test ../../infra/railway/proxy-address.test.mjs test/fleet-sim.test.mjs test/upload.test.mjs"
   },
   "dependencies": {
     "@protarget/i18n": "workspace:*",

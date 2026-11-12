@@ -26,12 +26,22 @@ export class AuditService {
   }
 
   append(tx: Prisma.TransactionClient, entry: AuditEntry) {
-    return tx.auditLog.create({ data: {
+    return tx.auditLog.create({ data: this.row(entry) });
+  }
+
+  /** One INSERT for many entries (fan-out writes such as a creative revoke); same redaction as `append`. */
+  appendMany(tx: Prisma.TransactionClient, entries: AuditEntry[]) {
+    if (!entries.length) return Promise.resolve({ count: 0 });
+    return tx.auditLog.createMany({ data: entries.map(entry => this.row(entry)) });
+  }
+
+  private row(entry: AuditEntry) {
+    return {
       userId: entry.userId, action: entry.action, entityType: entry.entityType, entityId: entry.entityId,
-      ...(entry.before === undefined ? {} : { before: redact(entry.before) }),
-      ...(entry.after === undefined ? {} : { after: redact(entry.after) }),
-      ...(entry.metadata === undefined ? {} : { metadata: redact(entry.metadata) }),
-    } });
+      ...(entry.before === undefined ? {} : { before: redact(entry.before) as Prisma.InputJsonValue }),
+      ...(entry.after === undefined ? {} : { after: redact(entry.after) as Prisma.InputJsonValue }),
+      ...(entry.metadata === undefined ? {} : { metadata: redact(entry.metadata) as Prisma.InputJsonValue }),
+    };
   }
 
   async list(query: PaginationDto) {

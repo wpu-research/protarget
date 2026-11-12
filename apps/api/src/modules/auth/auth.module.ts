@@ -12,6 +12,6 @@ import { SessionService } from './session.service';
   controllers: [AuthController, MeController],
   providers: [RuntimeConfig, AuthService, SessionService, AuthRateLimitService,
     { provide: APP_GUARD, useClass: AuthGuard }],
-  exports: [RuntimeConfig, SessionService],
+  exports: [RuntimeConfig, SessionService, AuthRateLimitService],
 })
 export class AuthModule {}

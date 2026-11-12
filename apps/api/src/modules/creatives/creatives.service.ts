@@ -213,16 +213,20 @@ export class CreativesService {
         before: presentCreative(row), after });
       const links = await tx.campaignCreative.findMany({ where: { creativeId: id, campaign: { deletedAt: null, status: { notIn: ['COMPLETED', 'CANCELLED'] } } },
         select: { campaign: { select: { id: true, status: true } } } });
-      for (const { campaign } of links) {
-        await tx.campaign.update({ where: { id: campaign.id }, data: {
-          planChangedAt: new Date(), ...(campaign.status === 'READY' ? { status: 'DRAFT' } : {}) } });
-        await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_CREATIVE_REVOKED', entityType: 'campaign', entityId: campaign.id,
-          metadata: { creativeId: id, code: row.code, reason: dto.reason } });
-        if (campaign.status === 'READY') {
-          await this.audit.append(tx, { userId: actor.user.id, action: 'CAMPAIGN_STATUS_CHANGED', entityType: 'campaign', entityId: campaign.id,
-            before: { status: 'READY' }, after: { status: 'DRAFT' }, metadata: { automatic: true, reason: 'CREATIVE_REVOKED', creativeId: id } });
-        }
-      }
+      // Fan-out in constant statements (2 updateMany + 1 createMany) so a creative linked to many campaigns cannot
+      // exceed the 10 s serializable-transaction timeout.
+      const ready = links.filter(({ campaign }) => campaign.status === 'READY').map(({ campaign }) => campaign.id);
+      const others = links.filter(({ campaign }) => campaign.status !== 'READY').map(({ campaign }) => campaign.id);
+      const now = new Date();
+      if (ready.length) await tx.campaign.updateMany({ where: { id: { in: ready } }, data: { planChangedAt: now, status: 'DRAFT' } });
+      if (others.length) await tx.campaign.updateMany({ where: { id: { in: others } }, data: { planChangedAt: now } });
+      const readySet = new Set(ready);
+      await this.audit.appendMany(tx, links.flatMap(({ campaign }) => [
+        { userId: actor.user.id, action: 'CAMPAIGN_CREATIVE_REVOKED', entityType: 'campaign', entityId: campaign.id,
+          metadata: { creativeId: id, code: row.code, reason: dto.reason } },
+        ...(readySet.has(campaign.id) ? [{ userId: actor.user.id, action: 'CAMPAIGN_STATUS_CHANGED', entityType: 'campaign', entityId: campaign.id,
+          before: { status: 'READY' }, after: { status: 'DRAFT' }, metadata: { automatic: true, reason: 'CREATIVE_REVOKED', creativeId: id } }] : []),
+      ]));
       return after;
     });
   }

@@ -9,6 +9,7 @@ import request, { Response } from 'supertest';
 import type { INestApplication } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { createApp } from '../src/main';
+import { UPLOAD_DIR, UPLOAD_LIMIT } from '../src/modules/creatives/upload-guard';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 const origin = process.env.WEB_ORIGIN!;
@@ -214,8 +215,8 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     await api('get', `/creatives/${text.id}/file`).expect(404);
     await upload(media.h264, { advertiserId: agencyId }).expect(400);
     await api('post', '/creatives').field('advertiserId', advertiserId).expect(400);
-    // Multer temp files (32 hex chars) must not survive a rejected body (Nest FileInterceptor cleanup).
-    const temps = () => readdirSync(tmpdir()).filter(name => /^[0-9a-f]{32}$/.test(name)).sort();
+    // Multer temp files must not survive a rejected body (Nest FileInterceptor cleanup); they live in the dedicated upload dir (D6).
+    const temps = () => readdirSync(UPLOAD_DIR).sort();
     const tempsBefore = temps();
     await upload(media.h264, { advertiserId: 'not-a-uuid' }).expect(400);
     await upload(media.h264, { unexpected: 'field' }).expect(400);
@@ -765,5 +766,144 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     await db.creative.create({ data: row({ replacesId: parent.id }) });
     await expect(db.creative.create({ data: row({ replacesId: parent.id }) })).rejects.toThrow();
     await expect(db.creative.create({ data: row({ replacesId: parent.id, status: 'REJECTED' }) })).resolves.toBeDefined();
+  });
+  it('keeps legacy per-screen schedule rows out of the detail, weeklyWindowHours and validation (D12)', async () => {
+    const screen = await makeScreen();
+    const campaign = await makeCampaign();
+    const path = `/campaigns/${campaign.id}`;
+    await api('post', `${path}/screens`).send({ screenIds: [screen.id] }).expect(200);
+    await db.schedule.create({ data: { campaignId: campaign.id, screenId: screen.id, dayOfWeek: 3, startTime: '06:00', endTime: '23:00' } });
+    // Only a legacy row exists: the booking has no campaign-wide dayparts at all.
+    const bare = (await api('get', path).expect(200)).body;
+    expect(bare.schedule).toEqual([]);
+    expect(bare.screens[0].weeklyWindowHours).toBeNull();
+    expect((await api('get', `${path}/validation`).expect(200)).body.blockers.map((b: { code: string }) => b.code)).toContain('NO_SCHEDULE');
+    // With a campaign-wide daypart the hours come from that daypart alone (08:00–12:00 = 4 h, not +17 h from the legacy row).
+    await api('post', `${path}/schedule`).send({ slots: [{ dayOfWeek: 1, startTime: '08:00', endTime: '12:00' }] }).expect(200);
+    const detail = (await api('get', path).expect(200)).body;
+    expect(detail.schedule).toHaveLength(1);
+    expect(detail.screens[0].weeklyWindowHours).toBe('4.00');
+  });
+
+  it('maps real Prisma errors for CHECK/trigger violations to 409 and nothing else (D11)', async () => {
+    const campaign = await db.campaign.findFirstOrThrow({ where: { id: { in: campaigns } } });
+    const approved = await db.creative.findFirstOrThrow({ where: { status: 'APPROVED' } });
+    const caught = async (work: () => Promise<unknown>) => work().then(() => { throw new Error('expected a database error'); }, (error: unknown) => error);
+    const { isCheckViolation, inventoryTransaction } = await import('../src/common/inventory-validation');
+    // Model API (CHECK): PrismaClientUnknownRequestError carrying the engine's PostgresError text.
+    const model = await caught(() => db.schedule.create({ data: { campaignId: campaign.id, dayOfWeek: 9, startTime: '10:00', endTime: '11:00' } }));
+    expect(model).toBeInstanceOf(Prisma.PrismaClientUnknownRequestError);
+    expect(isCheckViolation(model)).toBe(true);
+    // Model API (trigger RAISE ... ERRCODE 23514).
+    const trigger = await caught(() => db.creative.update({ where: { id: approved.id }, data: { width: 1 } }));
+    expect(isCheckViolation(trigger)).toBe(true);
+    // Raw query: PrismaClientKnownRequestError P2010 with meta.code.
+    const raw = await caught(() => db.$executeRawUnsafe('UPDATE campaigns SET "targetPlayouts" = 0 WHERE id = $1::uuid', campaign.id));
+    expect(raw).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    expect(isCheckViolation(raw)).toBe(true);
+    // Other database errors are not check violations, even when the failing text contains 23514.
+    const unique = await caught(() => db.organization.create({ data: { id: advertiserId, name: 'dup 23514', type: 'ADVERTISER' } }));
+    expect(isCheckViolation(unique)).toBe(false);
+    const foreignKey = await caught(() => db.schedule.create({ data: { campaignId: randomUUID(), dayOfWeek: 1, startTime: '10:00', endTime: '11:00' } }));
+    expect(isCheckViolation(foreignKey)).toBe(false);
+
+    // Through the transaction helper: 409 without database text, and the whole transaction rolled back.
+    const before = await db.schedule.count({ where: { campaignId: campaign.id } });
+    await expect(inventoryTransaction(db, async tx => {
+      await tx.schedule.create({ data: { campaignId: campaign.id, dayOfWeek: 2, startTime: '10:00', endTime: '11:00' } });
+      await tx.schedule.create({ data: { campaignId: campaign.id, dayOfWeek: 9, startTime: '10:00', endTime: '11:00' } });
+    })).rejects.toMatchObject({ status: 409, code: 'INVALID_STATE_TRANSITION', message: expect.not.stringContaining('schedules_') });
+    expect(await db.schedule.count({ where: { campaignId: campaign.id } })).toBe(before);
+  });
+
+  it('answers a revoke of a creative linked to many campaigns with one consistent batch (D10)', async () => {
+    const first = await readyCampaign();
+    const ready = [first];
+    for (let i = 0; i < 3; i++) ready.push(await readyCampaign({ creative: first.creativeId }));
+    const live = await readyCampaign({ creative: first.creativeId });
+    await declare(live.path, live.screen.id).expect(201);
+    await api('post', `${live.path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    const draft = await makeCampaign();
+    await api('post', `/campaigns/${draft.id}/creatives`).send({ creativeId: first.creativeId }).expect(200);
+    const all = [...ready, live].map(c => c.campaign.id as string).concat(draft.id);
+    const stamp = await db.campaign.findMany({ where: { id: { in: all } }, select: { id: true, planChangedAt: true } });
+    const before = new Map(stamp.map(row => [row.id, row.planChangedAt.getTime()]));
+
+    await api('post', `/creatives/${first.creativeId}/revoke`).send({ reason: 'Fan-out' }).expect(200);
+
+    const after = await db.campaign.findMany({ where: { id: { in: all } }, select: { id: true, status: true, planChangedAt: true } });
+    for (const row of after) {
+      expect(row.planChangedAt.getTime()).toBeGreaterThan(before.get(row.id)!);
+      expect(row.status).toBe(row.id === live.campaign.id ? 'LIVE' : 'DRAFT');
+    }
+    for (const id of all) {
+      expect(await db.auditLog.count({ where: { entityId: id, action: 'CAMPAIGN_CREATIVE_REVOKED' } })).toBe(1);
+      expect(await db.auditLog.count({ where: { entityId: id, action: 'CAMPAIGN_STATUS_CHANGED', metadata: { path: ['reason'], equals: 'CREATIVE_REVOKED' } } }))
+        .toBe(ready.some(c => c.campaign.id === id) ? 1 : 0);
+    }
+  });
+
+  it('resolves REVOKED and replacesId upload races to the right answer (D19)', async () => {
+    // A REVOKED child still occupies the version slot of its parent.
+    const v1 = (await upload(fresh('png'), { displayDurationSeconds: '5' }).expect(201)).body;
+    const v2 = (await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: v1.id }).expect(201)).body;
+    await api('post', `/creatives/${v2.id}/approve`).expect(200);
+    await api('post', `/creatives/${v2.id}/revoke`).send({ reason: 'Rights withdrawn' }).expect(200);
+    const blocked = await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: v1.id }).expect(409);
+    expect(blocked.body.error).toMatchObject({ code: 'INVALID_STATE_TRANSITION', message: expect.stringMatching(/newer version/) });
+    // A revoked creative can itself be replaced.
+    const v3 = (await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: v2.id }).expect(201)).body;
+    expect(v3).toMatchObject({ version: 3, replacesId: v2.id });
+
+    // Two concurrent replacements of the same creative: exactly one wins; the loser is a conflict, never a 500.
+    const parent = (await upload(fresh('png'), { displayDurationSeconds: '5' }).expect(201)).body;
+    const results = await Promise.all([
+      upload(fresh('png'), { displayDurationSeconds: '5', replacesId: parent.id }),
+      upload(fresh('png'), { displayDurationSeconds: '5', replacesId: parent.id }),
+    ]);
+    expect(results.map(r => r.status).sort()).toEqual([201, 409]);
+    expect(results.find(r => r.status === 409)!.body.error.code).toBe('INVALID_STATE_TRANSITION');
+    expect(await db.creative.count({ where: { replacesId: parent.id, status: { not: 'REJECTED' } } })).toBe(1);
+
+    // A same-file race that lost on an exhausted serialization conflict reports the REVOKED duplicate, not a generic conflict.
+    const file = fresh('png');
+    const original = (await upload(file, { displayDurationSeconds: '5' }).expect(201)).body;
+    await api('post', `/creatives/${original.id}/approve`).expect(200);
+    await api('post', `/creatives/${original.id}/revoke`).send({ reason: 'Expired' }).expect(200);
+    const real = db.serializable.bind(db);
+    let calls = 0;
+    const spy = jest.spyOn(db, 'serializable').mockImplementation(((work: never) => (++calls === 2
+      ? Promise.reject(new Prisma.PrismaClientKnownRequestError('serialization', { code: 'P2034', clientVersion: 'test' })) : real(work))) as never);
+    try {
+      const lost = await upload(file, { displayDurationSeconds: '5' }).expect(409);
+      expect(lost.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: original.id, status: 'REVOKED' } });
+      expect(lost.body.error.message).toMatch(/revoked/);
+      // With replacesId and no matching duplicate, the exhausted conflict stays generic.
+      calls = 0;
+      const generic = await upload(fresh('png'), { displayDurationSeconds: '5', replacesId: parent.id }).expect(409);
+      expect(generic.body.error.code).toBe('INVALID_STATE_TRANSITION');
+    } finally { spy.mockRestore(); }
+  });
+  it('writes no upload temp file for denied callers and rate-limits uploads per admin (D6)', async () => {
+    const temps = () => readdirSync(UPLOAD_DIR).sort();
+    const before = temps();
+    await upload(media.png, { displayDurationSeconds: '5' }, []).expect(401);
+    await upload(media.png, { displayDurationSeconds: '5' }, jars.AGENCY).expect(403);
+    await upload(media.png, { displayDurationSeconds: '5' }, jars.ADVERTISER).expect(403);
+    await upload(media.png, { displayDurationSeconds: '5' }, jars.SUPPORT).expect(403);
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(temps()).toEqual(before);
+
+    // A dedicated admin so the budget of the shared suite admin is untouched.
+    const admin = await db.user.findUniqueOrThrow({ where: { id: users.ADMIN } });
+    const email = `${randomUUID()}@example.test`;
+    await db.user.create({ data: { name: 'Booking limited admin', email, orgId: admin.orgId, role: 'ADMIN', passwordHash: admin.passwordHash } });
+    const jar = cookieJar(await api('post', '/auth/login', []).send({ email, password }).expect(200));
+    for (let i = 0; i < UPLOAD_LIMIT; i++) await api('post', '/creatives', jar).field('advertiserId', advertiserId).expect(400);
+    const limited = await api('post', '/creatives', jar).field('advertiserId', advertiserId).attach('file', media.png).expect(429);
+    expect(limited.body.error.code).toBe('RATE_LIMITED');
+    await new Promise(resolve => setTimeout(resolve, 100));
+    expect(temps()).toEqual(before);
+    await api('get', '/creatives', jar).expect(200);
   });
 });

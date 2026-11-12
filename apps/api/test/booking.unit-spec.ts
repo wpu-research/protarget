@@ -461,19 +461,43 @@ describe('creative upload cleanup (P8) and database-derived ids (P3)', () => {
 
 describe('database check-violation mapping (P18)', () => {
   it('recognizes SQLSTATE 23514 however Prisma surfaces it, and nothing else', () => {
-    const unknown = new Prisma.PrismaClientUnknownRequestError('Raw query failed. Code: `23514`. Message: `approved creative is immutable`', { clientVersion: 'x' });
+    const unknown = new Prisma.PrismaClientUnknownRequestError('Error occurred during query execution:\nConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "23514", message: "approved creative is immutable", severity: "ERROR" }) })', { clientVersion: 'x' });
     const known = new Prisma.PrismaClientKnownRequestError('failed', { code: 'P2010', clientVersion: 'x', meta: { code: '23514', message: 'new row violates check constraint' } });
     expect(isCheckViolation(unknown)).toBe(true);
     expect(isCheckViolation(known)).toBe(true);
     expect(isCheckViolation(Object.assign(new Error('x'), { code: '23514' }))).toBe(true);
     expect(isCheckViolation(new Prisma.PrismaClientUnknownRequestError('other failure', { clientVersion: 'x' }))).toBe(false);
     expect(isCheckViolation(new Error('mentions 23514 in text'))).toBe(false);
+    expect(isCheckViolation(new Prisma.PrismaClientUnknownRequestError('Failing row contains (23514, note)', { clientVersion: 'x' }))).toBe(false);
+    expect(isCheckViolation(new Prisma.PrismaClientKnownRequestError('Unique constraint failed on 23514', { code: 'P2002', clientVersion: 'x' }))).toBe(false);
     expect(isCheckViolation(null)).toBe(false);
   });
   it('maps to a 409 without leaking the database message', async () => {
-    const error = new Prisma.PrismaClientUnknownRequestError('Code: `23514`. Message: `secret trigger text`', { clientVersion: 'x' });
+    const error = new Prisma.PrismaClientUnknownRequestError('PostgresError { code: "23514", message: "secret trigger text" }', { clientVersion: 'x' });
     const db = { serializable: () => Promise.reject(error) };
     await expect(inventoryTransaction(db as never, async () => 1)).rejects.toMatchObject({ status: 409, code: 'INVALID_STATE_TRANSITION',
       message: expect.not.stringContaining('secret') });
+  });
+});
+
+describe('upload temp directory hygiene (D6)', () => {
+  it('creates the private upload dir and sweeps only files older than the limit', async () => {
+    const { mkdtempSync, writeFileSync, utimesSync, existsSync, rmSync, statSync } = await import('node:fs');
+    const { tmpdir } = await import('node:os');
+    const { join } = await import('node:path');
+    const { ensureUploadDir, sweepUploads, UPLOAD_MAX_AGE_MS } = await import('../src/modules/creatives/upload-guard');
+    const base = mkdtempSync(join(tmpdir(), 'sweep-'));
+    try {
+      const dir = ensureUploadDir(join(base, 'nested', 'uploads'));
+      expect(statSync(dir).mode & 0o777).toBe(0o700);
+      const stale = join(dir, 'stale'); const young = join(dir, 'young');
+      writeFileSync(stale, 'x'); writeFileSync(young, 'y');
+      const old = new Date(Date.now() - UPLOAD_MAX_AGE_MS - 60_000);
+      utimesSync(stale, old, old);
+      expect(sweepUploads(dir)).toBe(1);
+      expect(existsSync(stale)).toBe(false);
+      expect(existsSync(young)).toBe(true);
+      expect(sweepUploads(join(base, 'missing'))).toBe(0);
+    } finally { rmSync(base, { recursive: true, force: true }); }
   });
 });
