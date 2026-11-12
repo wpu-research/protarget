@@ -362,6 +362,22 @@ describe('object storage', () => {
     await new S3Storage(config, flaky as never, 1).put(key, source, 'image/png');
     expect(flaky.send).toHaveBeenCalledTimes(3);
   });
+  it('reads the S3 error code from `Code` when `name` is generic, and does not retry clock skew (CR-4)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 's3retrycode-'));
+    const source = join(root, 'src.bin');
+    writeFileSync(source, 'abcdef');
+    const config = { bucket: 'b', region: 'eu', accessKeyId: 'AK', secretAccessKey: 'SK', forcePathStyle: true };
+    let calls = 0;
+    const generic = { send: jest.fn(async () => {
+      if (++calls < 2) throw Object.assign(new Error('slow'), { name: 'UnknownError', Code: 'RequestTimeout', $metadata: { httpStatusCode: 400 } });
+      return {};
+    }) };
+    await new S3Storage(config, generic as never, 1).put(key, source, 'image/png');
+    expect(generic.send).toHaveBeenCalledTimes(2);
+    const skewed = { send: jest.fn(async () => { throw Object.assign(new Error('skew'), { name: 'RequestTimeTooSkewed', $metadata: { httpStatusCode: 403 } }); }) };
+    await expect(new S3Storage(config, skewed as never, 1).put(key, source, 'image/png')).rejects.toThrow('skew');
+    expect(skewed.send).toHaveBeenCalledTimes(1);
+  });
   it('disables SDK-level retries on the real client (maxAttempts 1)', async () => {
     const storage = new S3Storage({ bucket: 'b', region: 'eu', accessKeyId: 'AK', secretAccessKey: 'SK', forcePathStyle: true });
     const client = (storage as unknown as { client: { config: { maxAttempts: () => Promise<number> } } }).client;

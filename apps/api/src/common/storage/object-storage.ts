@@ -50,8 +50,8 @@ export class LocalDiskStorage implements ObjectStorage {
 export interface S3Settings {
   endpoint?: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; forcePathStyle: boolean;
 }
-/** S3 error names that arrive as 4xx but heal on retry. */
-const TRANSIENT_S3_ERRORS = ['RequestTimeout', 'RequestTimeTooSkewed', 'OperationAborted', 'SlowDown', 'RequestTimeoutException'];
+/** S3 error names that arrive as 4xx but heal on retry (clock skew does not: it is not listed). */
+const TRANSIENT_S3_ERRORS = ['RequestTimeout', 'RequestTimeoutException', 'OperationAborted'];
 
 export class S3Storage implements ObjectStorage {
   readonly driver = 's3' as const;
@@ -79,8 +79,10 @@ export class S3Storage implements ObjectStorage {
         const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
         // 4xx other than 429/408 (AccessDenied, NoSuchBucket, ...) will not heal by waiting. S3 reports some transient
         // faults as 400/409 by error name, so those names are retried too.
-        const name = (error as { name?: string; Code?: string }).name ?? (error as { Code?: string }).Code;
-        const transient = status === 408 || status === 429 || (name !== undefined && TRANSIENT_S3_ERRORS.includes(name));
+        // Backends often leave `name` generic ("Error"/"UnknownError") and put the S3 code in `Code`: check both.
+        const fault = error as { name?: string; Code?: string };
+        const transient = status === 408 || status === 429
+          || [fault.name, fault.Code].some(code => code !== undefined && TRANSIENT_S3_ERRORS.includes(code));
         const permanent = status !== undefined && status >= 400 && status < 500 && !transient;
         if (permanent || attempt >= attempts) throw error;
         await new Promise(resolve => setTimeout(resolve, this.retryDelayMs * attempt));

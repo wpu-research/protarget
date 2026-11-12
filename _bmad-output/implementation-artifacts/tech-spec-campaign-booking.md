@@ -242,7 +242,7 @@ Aralık `c6609b9..8f007c9`. Katmanlar: Blind Hunter, Edge Case Hunter, Acceptanc
 - **Reddedilen/yapılmayan:** P10 (unlink sonrası `campaign.updatedAt` değiştiği için doğrulama zaten yenileniyor, `CampaignDetail.tsx:46`); P13 (DTO `overdeliveryTolerancePct: null`'u 400 ile reddediyor; test eklendi). Defer D8–D13 açık.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 136 API birim; 89 integration (88 + 1 yeni); 43 E2E (42 + 1 yeni). Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi.
 
-### Code Review Findings — Tur 3 (2026-11-11) → Düzeltildi, CR-4 bekleniyor
+### Code Review Findings — Tur 3 (2026-11-11) → Düzeltildi (CR-4 incelendi)
 
 Aralık `8f007c9..4ac94d4` (CR-2 düzeltmeleri). Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (üçü de tamamlandı). 0 intent_gap, 0 bad_spec, 5 patch, 4 defer, 7 reject. Kod okuma ile doğrulandı; testler bu turda çalıştırılmadı.
 
@@ -267,3 +267,27 @@ Aralık `8f007c9..4ac94d4` (CR-2 düzeltmeleri). Katmanlar: Blind Hunter, Edge C
 - P3 S3 `put`: `RequestTimeout`, `RequestTimeTooSkewed`, `OperationAborted`, `SlowDown` adları 4xx olsa da yeniden denenir; kalıcı 4xx (403 AccessDenied vb.) tek denemede biter. Birim test eklendi.
 - P4 testler: P8 yarışı, P12 S3 4xx, (revoke LIVE zaten mevcut testte kapsanıyor, yeniden eklenmedi). **Yapılmadı:** web eşleme birim testleri (web'de birim test altyapısı yok; E2E ile kısmen örtülü), P9/P7 için ayrı test. P5 `CAMPAIGNS.md` `details.reason` ifadesi CMS hatalarına daraltıldı.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 137 API birim; 90 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi.
+
+### Code Review Findings — Tur 4 (2026-11-12) → Düzeltildi, CR-5 bekleniyor
+
+Aralık `4ac94d4..33ee215` (Tur 3 düzeltmeleri). Blind Hunter, Edge Case Hunter, Acceptance Auditor tamamlandı. 0 intent_gap, 0 bad_spec, 4 patch, 3 defer, 8 reject. Kod okuma ile doğrulandı; bu turda test çalıştırılmadı.
+
+**Patch**
+- **P1 (orta) — S3 geçici hata adı yalnız `name`'den okunuyor.** `object-storage.ts` `put`: `name ?? Code` → `name` her zaman tanımlı olduğundan (çoğu zaman genel `Error`/`UnknownError`) `Code` hiç bakılmaz; MinIO/R2/Ceph'te geçici 400/409 kalıcı sayılır. Her iki alan da kontrol edilmeli. Ayrıca `RequestTimeTooSkewed` saat kayması hatasıdır, yeniden denemeyle düzelmez: listeden çıkar. `SlowDown` zaten 503 (5xx yolu yeniden dener): listede gürültü. Birim test: yalnız `Code` taşıyan hata.
+- **P2 (orta-yüksek) — Yükleme sırasında takılma sınırı kalmadı (Tur 3 P2 gerilemesi).** `upload.ts`: toplam zaman aşımı kaldırıldı, yanıt zamanlayıcısı yalnız `upload.onload`'da kuruluyor; gövde giderken bağlantı takılırsa spinner işletim sistemi TCP zaman aşımına kadar (veya sonsuza) döner. Düzeltme: `upload.onprogress` ile yeniden kurulan boşta (ilerleme yok) zamanlayıcısı (örn. 2 dk); tetiklenince abort → `SERVICE_UNAVAILABLE` (gövde tam gitmediği için). `done()` temizler.
+- **P3 (orta) — Serializable yeniden deneme tükenince mükerrer yine genel 409.** `PrismaService.serializable` P2034'ü yalnız 3 kez dener; aynı dosyanın eşzamanlı yüklemesinde Postgres kaybedeni çoğunlukla 40001 (P2034) olarak bildirir, tükenirse `inventoryTransaction` bunu genel `Inventory conflict` 409'una sarar ve `UploadRace` yolu devreye girmez. Entegrasyon testi bu yüzden zamanlamaya bağlı. Düzeltme: `upload()` catch'inde `UploadRace` VEYA (`ApiError` 409 `INVALID_STATE_TRANSITION` ve `inspected.ok`) için aynı yeniden sorgulama (`DUPLICATE_CREATIVE`/REVOKED mesajı/"newer version"); eşleşen yoksa özgün hata fırlatılır.
+- **P4 (düşük) — Tur 3 P4 eksik teslim + kayıt yanlış.** `PERFORMED_IN_FUTURE`, `PERFORMED_BEFORE_BOOKING`, `SCREEN_NOT_IN_BOOKING` için `details.reason` testi yok (CAMPAIGNS.md bunları listeliyor); revoke yalnız LIVE'da test edilmiş, PAUSED değil. Testleri ekle; Tur 3 düzeltme kaydındaki "yapılmadı" listesini ve "LIVE/PAUSED zaten kapsanıyor" ifadesini doğrula/düzelt.
+
+**Defer**
+- D18 `UploadRace` P2002 `meta.target`'ı denetlemiyor (code/`replacesId` çakışması, aynı checksum'lı satır varsa yanlışlıkla DUPLICATE olabilir); düşük olasılık.
+- D19 REVOKED ve `replacesId` yarış dalları için entegrasyon testi yok.
+- D20 `upload.onload` sonrası kullanıcı iptali (`signal`) `UPLOAD_ABORTED` döner; kayıt oluşmuş olabilir ama çağıran bileşen zaten kapanmıştır.
+
+**Reddedilen (8):** `RequestTimeoutException`/`SlowDown` ad listesi gürültüsü (P1'e katlandı); `UploadRace` sarmalanır/yeniden denenir endişesi (doğrulandı: `inventoryTransaction` yalnız Prisma bilinen hatalarını sarar, `UploadRace` geçer; storage `put` işlem dışında, yeniden denemede bayat anahtar yok); genel conflict yedek mesajı (kabul edilebilir yedek); zamanlayıcı sızıntısı (zararsız); timeout+iptal çakışması (nadir); `UPLOAD_UNCONFIRMED` arayüz tüketicisi yok iddiası (CR-2 P9'da `bookingError` eşlemesi var); docs/CAMPAIGNS.md "ilgisiz" iddiası (kodla uyumlu, auditor doğruladı); P1/P2/P3/P5 uygulama uyumsuzluğu bulunmadı.
+
+**Tur 4 düzeltme kaydı (2026-11-12):** P1–P4 uygulandı.
+- P1 S3 `put` hem `name` hem `Code` alanına bakar; geçici liste `RequestTimeout`, `RequestTimeoutException`, `OperationAborted` (`RequestTimeTooSkewed` ve `SlowDown` çıkarıldı: saat kayması yeniden denemeyle düzelmez, `SlowDown` zaten 503). Birim test: yalnız `Code` taşıyan hata yeniden denenir, saat kayması tek denemede biter.
+- P2 `upload.ts`: gövde giderken ilerleme olmadan 2 dk (`STALL_MS`) geçerse abort → `SERVICE_UNAVAILABLE`; gövde bittikten sonra yanıt beklemesi 12 dk. İlerleme olayı zamanlayıcıyı yeniden kurar (gövde gittikten sonra kurmaz). Web'de birim test altyapısı olmadığından otomatik testi yok; **takılma/zaman aşımı davranışı hiçbir testte doğrulanmadı.**
+- P3 `upload()` catch'i, `serializable` P2034'ü tüketip `inventoryTransaction`'ın sardığı genel `Inventory conflict` 409'unu da `UploadRace` gibi çözer (aynı checksum'lı kayıt varsa `DUPLICATE_CREATIVE`); kayıt yoksa özgün hata fırlar. Eşzamanlı yükleme testi artık iki yolda da aynı sonucu verir.
+- P4 yeni entegrasyon testi: `PERFORMED_IN_FUTURE`, `PERFORMED_BEFORE_BOOKING`, `SCREEN_NOT_IN_BOOKING` reason kodları ve PAUSED booking'de revoke → PAUSED kalır + `REVOKED_CREATIVE` uyarısı. **Düzeltme (Tur 3 kaydına):** Tur 3'te "P12 S3 testi eklendi" doğru; "LIVE/PAUSED zaten kapsanıyor" ifadesi yalnız LIVE için doğruydu, PAUSED Tur 4'te eklendi. Web eşleme birim testleri ve P9/P7 testleri hâlâ yok.
+- Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 138 API birim; 91 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi, gerçek ağ takılması.

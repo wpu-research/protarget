@@ -5,6 +5,9 @@ import { renewSession, RequestError } from './client';
 /** Files above this size renew the session first: a 401 after sending hundreds of MB would waste the whole transfer. */
 const RENEW_BEFORE_BYTES = 1024 * 1024;
 export const UPLOAD_ABORTED = 'UPLOAD_ABORTED';
+/** No upload progress for this long ends the transfer; the response wait after a complete body is longer than the proxy cap. */
+const STALL_MS = 2 * 60 * 1000;
+const RESPONSE_WAIT_MS = 12 * 60 * 1000;
 
 function isCreative(value: unknown): value is CreativeSummary {
   if (!value || typeof value !== 'object') return false;
@@ -22,18 +25,23 @@ export function uploadCreative(form: FormData, onProgress: (percent: number) => 
     const request = new XMLHttpRequest();
     const abort = () => request.abort();
     signal?.addEventListener('abort', abort, { once: true });
-    const done = () => { signal?.removeEventListener('abort', abort); clearTimeout(responseTimer); };
+    const done = () => { signal?.removeEventListener('abort', abort); clearTimeout(timer); };
     request.open('POST', '/api/v1/creatives');
     request.responseType = 'text';
-    // No total timeout: a slow uplink may legitimately need longer than any fixed bound. Only the wait for the response
-    // after the whole body is out is bounded (longer than the proxy's own 10 minute cap), so it cannot spin forever.
-    let responseTimer: ReturnType<typeof setTimeout> | undefined;
+    // No total timeout: a slow uplink may legitimately need longer than any fixed bound. Instead a stall watchdog ends a
+    // transfer that makes no progress for STALL_MS, and the wait for the response after the body is out is bounded too
+    // (longer than the proxy's own 10 minute cap), so nothing can spin forever.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     let timedOut = false;
+    const arm = (ms: number) => { clearTimeout(timer); timer = setTimeout(() => { timedOut = true; request.abort(); }, ms); };
     // Once the whole body is out, a lost response may hide a created record: that is "unconfirmed", not "unavailable".
     let sent = false;
-    request.upload.onload = () => { sent = true; responseTimer = setTimeout(() => { timedOut = true; request.abort(); }, 12 * 60 * 1000); };
+    request.upload.onload = () => { sent = true; arm(RESPONSE_WAIT_MS); };
     const lost = () => new RequestError(sent ? 'UPLOAD_UNCONFIRMED' : 'SERVICE_UNAVAILABLE', 0);
-    request.upload.onprogress = event => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); };
+    request.upload.onprogress = event => {
+      if (!sent) arm(STALL_MS);
+      if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100));
+    };
     request.onerror = () => { done(); reject(lost()); };
     request.ontimeout = () => { done(); reject(lost()); };
     request.onabort = () => { done(); reject(timedOut ? lost() : new RequestError(UPLOAD_ABORTED, 0)); };
@@ -43,6 +51,7 @@ export function uploadCreative(form: FormData, onProgress: (percent: number) => 
       try { body = JSON.parse(request.responseText); } catch { /* non-JSON error body */ }
       resolve({ status: request.status, body, sent });
     };
+    arm(STALL_MS);
     request.send(form);
   });
   return (async () => {

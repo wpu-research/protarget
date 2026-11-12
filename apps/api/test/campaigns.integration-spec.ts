@@ -708,6 +708,26 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     expect(loser.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: results.find(response => response.status === 201)!.body.id } });
   });
 
+  it('reports CMS declaration problems with machine-readable reasons, and a revoked creative leaves a PAUSED booking paused (CR-4)', async () => {
+    const { path, screen } = await readyCampaign();
+    const reason = async (response: { body: { error: { details: { reason: string } } } }) => response.body.error.details.reason;
+    expect(await reason(await declare(path, screen.id, 'CMS_UPLOADED', { performedAt: new Date(Date.now() + 3_600_000).toISOString() }).expect(400)))
+      .toBe('PERFORMED_IN_FUTURE');
+    expect(await reason(await declare(path, screen.id, 'CMS_UPLOADED', { performedAt: '2000-01-01T00:00:00.000Z' }).expect(400)))
+      .toBe('PERFORMED_BEFORE_BOOKING');
+    const stranger = await makeScreen();
+    expect(await reason(await declare(path, stranger.id).expect(400))).toBe('SCREEN_NOT_IN_BOOKING');
+
+    await declare(path, screen.id).expect(201);
+    await api('post', `${path}/transitions`).send({ to: 'LIVE' }).expect(200);
+    await api('post', `${path}/transitions`).send({ to: 'PAUSED', reason: 'Client request' }).expect(200);
+    const creativeId = (await api('get', path).expect(200)).body.creatives[0].id as string;
+    await api('post', `/creatives/${creativeId}/revoke`).send({ reason: 'Rights withdrawn' }).expect(200);
+    expect((await api('get', path).expect(200)).body.status).toBe('PAUSED');
+    const warnings = (await api('get', `${path}/validation`).expect(200)).body.warnings.map((w: { code: string }) => w.code);
+    expect(warnings).toContain('REVOKED_CREATIVE');
+  });
+
   it('enforces database guards independently of the API', async () => {
     const campaign = await db.campaign.findFirstOrThrow({ where: { id: { in: campaigns } } });
     await expect(db.campaign.update({ where: { id: campaign.id }, data: { targetPlayouts: 0n } })).rejects.toThrow();

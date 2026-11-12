@@ -168,15 +168,21 @@ export class CreativesService {
         if (storageKey) await storage.delete(storageKey).catch(() => {
           console.error(JSON.stringify({ level: 'error', msg: 'orphan creative object', storageKey }));
         });
-        if (error instanceof UploadRace) {
+        // db.serializable gives up on P2034 after three tries and inventoryTransaction folds that into a generic 409: a
+        // same-file race that lost this way is resolved like an UploadRace.
+        const foldedConflict = error instanceof ApiError && error.status === 409 && error.code === 'INVALID_STATE_TRANSITION'
+          && error.message === 'Inventory conflict; reload and retry';
+        if (error instanceof UploadRace || (foldedConflict && inspected.ok)) {
           // A concurrent upload won the partial unique index: report it like the application-level check does.
           const existing = await this.db.creative.findFirst({ where: { advertiserId, checksum, status: { not: 'REJECTED' } },
             select: { id: true, code: true, status: true } });
           if (existing) throw new ApiError(409, 'DUPLICATE_CREATIVE', existing.status === 'REVOKED'
             ? 'This file matches a revoked creative of the advertiser and cannot be uploaded again'
             : 'This file already exists for the advertiser', { creativeId: existing.id, code: existing.code, status: existing.status });
-          if (dto.replacesId) throw conflict('This creative already has a newer version');
-          throw conflict('Inventory conflict; reload and retry');
+          if (error instanceof UploadRace) {
+            if (dto.replacesId) throw conflict('This creative already has a newer version');
+            throw conflict('Inventory conflict; reload and retry');
+          }
         }
         throw error;
       }
