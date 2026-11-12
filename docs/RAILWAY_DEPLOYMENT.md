@@ -63,9 +63,24 @@ Aynı test reklamverenine (yükleme için geçici aktif edildi, sonra tekrar pas
 - İki kayıt da `REJECTED` yapıldı (gerekçeyle); onaylanmadı, bir kampanyaya bağlanmadı.
   Test dosyaları yerelde silindi.
 
-**Yapılmayanlar (başarılı sayılmaz):** sunucu tarafı 200 MB sınırı (canlıda),
-tarayıcıda TR/EN/mobil kontrolü, yedekten restore, migration yükseltme
-tatbikatı ve gerçek ağ takılması testi. D8–D23 defer'ları açık.
+### Restore tatbikatı ve tarayıcı kontrolü (12 Kasım 2026, akşam)
+
+- **Restore:** `protarget-20261112-pre-campaign-c2ca020.dump` (101.411 bayt), Postgres
+  konteynerine stdin ile aktarıldı (sha256 aynı), konteynerdeki `pg_restore` 18.6 ile
+  **ayrı bir `restore_drill` veritabanına** `--exit-on-error` ile hatasız yüklendi
+  (31 tablo; 6 migration, 1 kurum, 1 kullanıcı, 1 mekân, 1 ekran, 32 denetim satırı =
+  yedek anı). Canlı `railway` veritabanına yazılmadı; sonra `restore_drill` silindi,
+  dump konteynerden kaldırıldı, sağlık 200.
+- **Tarayıcı:** canlıda `/admin`, `/admin/campaigns`, `/admin/creatives`, `/admin/fleet`
+  375×812'de sayfa genelinde yatay taşma yok (nav yatay kaydırılır); EN'de çeviri
+  eksiği görülmedi. Küçük kusurlar: `/admin/fleet` mobilde Eminönü/Kabataş etiketleri
+  üst üste biniyor, EN'deki "Drag to rotate, scroll to zoom" dokunmatik için uygun değil.
+- **Migration yükseltme provası:** 11 Kasım'da yerelde yapılmıştı (6→7 migration, veri
+  sayıları aynı kaldı); sonradan eklenen `campaign_booking_review` veri üstünde ayrıca
+  denenmedi, canlıda uygulandı.
+
+**Yapılmayanlar (başarılı sayılmaz):** sunucu tarafı 200 MB sınırı (canlıda), gerçek
+ağ takılması testi. D8–D23 defer'ları açık.
 
 Geri dönüş: önceki API `99952375-2d85-4e7f-ab89-43d44922c425`, web
 `de68631c-99f2-47c8-8414-e5b9e01f6133` (Railway'de hedeflenerek;
