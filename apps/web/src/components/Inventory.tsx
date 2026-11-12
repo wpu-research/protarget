@@ -395,26 +395,125 @@ export function ScreenEditor({ screen, venues, selectedVenue }: {
     {baseline && <RecordMetadata record={baseline} zone={baseline.timezone} />}
   </section>;
 }
-export function Screens({ data, venues, selectedVenue, filters }: {
+export interface ScreenAd {
+  campaignId: string; campaignCode: string; campaignName: string; status: string;
+  creative: { id: string; code: string; kind: 'VIDEO' | 'IMAGE' | null; status: string } | null;
+}
+type ScreenView = 'wall' | 'cards' | 'list';
+const viewStorageKey = 'protarget.screens.view';
+function ScreenActions({ screen }: { screen: InventoryScreen }) {
+  const text = useText();
+  return <div className="inventory-actions"><Link className="button quiet" href={`${base}/screens/${screen.id}`}
+    aria-label={`${text('common.edit')} ${screen.screenId}`}>{text('common.details')}</Link>
+    <Link className="button quiet" href={`${base}/screens/${screen.id}/multipliers`}>{text('inventory.history')}</Link></div>;
+}
+function ScreenTile({ screen, ads }: { screen: InventoryScreen; ads: ScreenAd[] }) {
+  const text = useText();
+  const [index, setIndex] = useState(0);
+  const withMedia = ads.filter(ad => ad.creative && ad.creative.kind);
+  const current = withMedia.length ? withMedia[index % withMedia.length] : undefined;
+  const portrait = screen.orientation === 'PORTRAIT' || (screen.resolutionWidth != null && screen.resolutionHeight != null && screen.resolutionHeight > screen.resolutionWidth);
+  const ratio = screen.resolutionWidth && screen.resolutionHeight ? `${screen.resolutionWidth} / ${screen.resolutionHeight}` : portrait ? '9 / 16' : '16 / 9';
+  useEffect(() => {
+    if (withMedia.length < 2 || current?.creative?.kind !== 'IMAGE') return;
+    const timer = window.setTimeout(() => setIndex(value => value + 1), 5000);
+    return () => window.clearTimeout(timer);
+  }, [index, withMedia.length, current?.creative?.kind]);
+  const src = current?.creative ? `/api/v1/creatives/${current.creative.id}/file` : '';
+  return <article className={`screen-tile${screen.active ? '' : ' inactive'}${portrait ? ' portrait' : ''}`} data-screen-id={screen.screenId}>
+    <div className="monitor" style={{ aspectRatio: ratio }}>
+      {current?.creative?.kind === 'VIDEO' && <video key={src} src={`${src}#t=0.1`} muted playsInline preload="metadata" tabIndex={0}
+        loop={withMedia.length < 2} onEnded={() => setIndex(value => value + 1)}
+        onMouseEnter={event => { void event.currentTarget.play().catch(() => undefined); }}
+        onFocus={event => { void event.currentTarget.play().catch(() => undefined); }}
+        onMouseLeave={event => event.currentTarget.pause()} onBlur={event => event.currentTarget.pause()}
+        onClick={event => { const video = event.currentTarget; if (video.paused) void video.play().catch(() => undefined); else video.pause(); }}
+        aria-label={`${text('creative.preview')} ${current.creative.code}`} />}
+      {current?.creative?.kind === 'IMAGE' && <img key={src} src={src} alt={`${text('creative.preview')} ${current.creative.code}`} />}
+      {!current && <span className="monitor-empty">{text(ads.length ? 'inventory.adNoMedia' : 'inventory.adNone')}</span>}
+      {withMedia.length > 1 && <span className="monitor-count">{(index % withMedia.length) + 1}/{withMedia.length}</span>}
+    </div>
+    <div className="screen-tile-info">
+      <header><div><strong>{screen.screenId}</strong><small>{screen.name}</small></div><Status active={screen.active} /></header>
+      <p className="screen-venue">{screen.venue.name}<small>{screen.venue.city}{screen.locationLabel ? ` · ${screen.locationLabel}` : ''}</small></p>
+      {ads.length > 0 && <ul className="screen-ads" aria-label={text('inventory.ads')}>{ads.map(ad => <li key={ad.campaignCode} className={ad === current ? 'now' : ''}>
+        <Link href={`/admin/campaigns/${ad.campaignId}`}>{ad.campaignCode}</Link> {ad.campaignName} <span className="badge">{ad.status}</span></li>)}</ul>}
+      <ScreenActions screen={screen} />
+    </div>
+  </article>;
+}
+function ScreenCard({ screen }: { screen: InventoryScreen }) {
+  const text = useText();
+  const unknown = text('inventory.unknown');
+  const resolution = screen.resolutionWidth && screen.resolutionHeight ? `${screen.resolutionWidth} × ${screen.resolutionHeight}` : unknown;
+  const hours = screen.operatingStart && screen.operatingEnd ? `${screen.operatingStart} – ${screen.operatingEnd}` : unknown;
+  const orientation = screen.orientation === 'LANDSCAPE' ? text('inventory.landscape')
+    : screen.orientation === 'PORTRAIT' ? text('inventory.portrait') : unknown;
+  return <article className={`card screen-card${screen.active ? '' : ' inactive'}`} data-screen-id={screen.screenId}>
+    <header><div><strong>{screen.screenId}</strong><small>{screen.name}</small></div><Status active={screen.active} /></header>
+    <p className="screen-venue">{screen.venue.name}<small>{screen.venue.city}, {screen.venue.country}</small></p>
+    <dl className="screen-facts">
+      <div><dt>{text('inventory.location')}</dt><dd>{screen.locationLabel ?? unknown}</dd></div>
+      <div><dt>{text('inventory.resolution')}</dt><dd>{resolution}</dd></div>
+      <div><dt>{text('inventory.orientation')}</dt><dd>{orientation}</dd></div>
+      <div><dt>{text('inventory.physicalSize')}</dt><dd>{screen.physicalSize ?? unknown}</dd></div>
+      <div><dt>{text('inventory.operatingHours')}</dt><dd>{hours}</dd></div>
+      <div><dt>{text('inventory.connection')}</dt><dd><span className="badge">{text('inventory.notConnected')}</span></dd></div>
+    </dl>
+    <ScreenActions screen={screen} />
+  </article>;
+}
+export function Screens({ data, venues, selectedVenue, filters, ads = {} }: {
   data: PageResult<InventoryScreen>; venues: PageResult<InventoryVenue>; selectedVenue?: InventoryVenue; filters: Filters;
+  /** Screen code → ads currently booked on it (read-only, from campaigns). */
+  ads?: Record<string, ScreenAd[]>;
 }) {
   const text = useText();
+  const [view, setView] = useState<ScreenView>('wall');
+  const [search, setSearch] = useState('');
+  useEffect(() => {
+    try { const saved = window.localStorage.getItem(viewStorageKey); if (saved === 'list' || saved === 'cards' || saved === 'wall') setView(saved); } catch { /* storage unavailable */ }
+  }, []);
+  function chooseView(next: ScreenView) {
+    setView(next);
+    try { window.localStorage.setItem(viewStorageKey, next); } catch { /* storage unavailable */ }
+  }
+  const needle = search.trim().toLocaleLowerCase();
+  const items = needle ? data.items.filter(screen => [screen.screenId, screen.name, screen.venue.name, screen.venue.city, screen.locationLabel]
+    .some(value => value?.toLocaleLowerCase().includes(needle))) : data.items;
   return <div className="stack inventory">
     <ScreenEditor venues={venues} selectedVenue={selectedVenue} />
     <InventoryFilters key={JSON.stringify(filters)} kind="screens" filters={filters} venues={venues} selectedVenue={selectedVenue} />
+    <div className="card screen-toolbar">
+      <label className="screen-search">{text('inventory.searchScreens')}
+        <input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder={text('inventory.searchPlaceholder')} /></label>
+      <div className="view-toggle" role="group" aria-label={text('inventory.view')}>
+        <button type="button" className="button quiet" aria-pressed={view === 'wall'} onClick={() => chooseView('wall')}>{text('inventory.viewWall')}</button>
+        <button type="button" className="button quiet" aria-pressed={view === 'cards'} onClick={() => chooseView('cards')}>{text('inventory.viewCards')}</button>
+        <button type="button" className="button quiet" aria-pressed={view === 'list'} onClick={() => chooseView('list')}>{text('inventory.viewList')}</button>
+      </div>
+      <p className="hint" role="status">{text('inventory.screenCount', { shown: items.length, total: data.total })}</p>
+    </div>
+    {view === 'wall' ? <section aria-label={text('nav.inventory.screens')}>
+      <div className="screen-wall">{items.map(screen => <ScreenTile key={screen.id} screen={screen} ads={ads[screen.screenId] ?? []} />)}</div>
+      {!items.length && <p className="card empty-inline">{text('inventory.emptyScreens')}</p>}
+      <InventoryPager data={data} href={`${base}/screens`} filters={filters} />
+    </section> : view === 'cards' ? <section aria-label={text('nav.inventory.screens')}>
+      <div className="screen-grid">{items.map(screen => <ScreenCard key={screen.id} screen={screen} />)}</div>
+      {!items.length && <p className="card empty-inline">{text('inventory.emptyScreens')}</p>}
+      <InventoryPager data={data} href={`${base}/screens`} filters={filters} />
+    </section> :
     <section className="card table-card"><div className="table-scroll"><table>
       <caption className="visually-hidden">{text('nav.inventory.screens')}</caption>
       <thead><tr><th>{text('inventory.screenCode')}</th><th>{text('inventory.venue')}</th><th>{text('field.status')}</th><th>{text('inventory.connection')}</th><th>{text('common.actions')}</th></tr></thead>
-      <tbody>{data.items.map(screen => <tr key={screen.id}>
+      <tbody>{items.map(screen => <tr key={screen.id}>
         <td><strong>{screen.screenId}</strong><small>{screen.name}</small></td><td>{screen.venue.name}</td>
         <td><Status active={screen.active} /></td><td><span className="badge">{text('inventory.notConnected')}</span></td>
-        <td><div className="inventory-actions"><Link className="button quiet" href={`${base}/screens/${screen.id}`}
-          aria-label={`${text('common.edit')} ${screen.screenId}`}>{text('common.details')}</Link>
-          <Link className="button quiet" href={`${base}/screens/${screen.id}/multipliers`}>{text('inventory.history')}</Link></div></td>
+        <td><ScreenActions screen={screen} /></td>
       </tr>)}</tbody>
-    </table></div>{!data.items.length && <p className="empty-inline">{text('inventory.emptyScreens')}</p>}
+    </table></div>{!items.length && <p className="empty-inline">{text('inventory.emptyScreens')}</p>}
       <InventoryPager data={data} href={`${base}/screens`} filters={filters} />
-    </section>
+    </section>}
   </div>;
 }
 export function ScreenDetail({ screen, venues }: { screen: InventoryScreen; venues: PageResult<InventoryVenue> }) {

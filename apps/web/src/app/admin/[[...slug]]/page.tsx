@@ -13,7 +13,7 @@ import { CampaignWizard } from '@/components/CampaignWizard';
 import { CampaignDetailView } from '@/components/CampaignDetail';
 import { Creatives } from '@/components/Creatives';
 import { FleetView } from '@/components/fleet/FleetView';
-import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory } from '@/components/Inventory';
+import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory, type ScreenAd } from '@/components/Inventory';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -25,6 +25,25 @@ async function listAllCapped<T>(path: string): Promise<{ items: T[]; truncated: 
     if (page * result.pageSize >= result.total) return { items, truncated: false };
   }
   return { items, truncated: true };
+}
+/** Read-only: which campaign creatives are booked on which screen code. Failure degrades to "no ads", never breaks the page. */
+async function screenAds(): Promise<Record<string, ScreenAd[]>> {
+  const ads: Record<string, ScreenAd[]> = {};
+  try {
+    const list = await serverApi<CampaignPage>('/campaigns?page=1&pageSize=50');
+    const live = list.items.filter(c => c.status !== 'CANCELLED' && c.status !== 'COMPLETED');
+    const details = await Promise.all(live.map(c => serverApi<CampaignDetail>(`/campaigns/${c.id}`, true).catch(() => undefined)));
+    for (const detail of details) {
+      if (!detail) continue;
+      const usable = detail.creatives.filter(c => c.status === 'APPROVED' || c.status === 'VALIDATING' || c.status === 'UPLOADED');
+      const creative = usable.find(c => c.status === 'APPROVED') ?? usable[0];
+      for (const row of detail.screens) (ads[row.code] ??= []).push({
+        campaignId: detail.id, campaignCode: detail.code, campaignName: detail.name, status: detail.status,
+        creative: creative ? { id: creative.id, code: creative.code, kind: creative.kind, status: creative.status } : null,
+      });
+    }
+  } catch { /* ads are optional context */ }
+  return ads;
 }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export default async function AdminPage({ params, searchParams }: {
@@ -83,7 +102,7 @@ export default async function AdminPage({ params, searchParams }: {
       venueId ? serverApi<InventoryVenue>(`/venues/${venueId}`, true) : undefined,
     ]);
     return <>{heading(t('nav.inventory.screens', language))}
-      <Screens data={data} venues={venues} selectedVenue={selectedVenue} filters={filters} /></>;
+      <Screens data={data} venues={venues} selectedVenue={selectedVenue} filters={filters} ads={await screenAds()} /></>;
   }
   if (slug[0] === 'campaigns' || (slug[0] === 'creatives' && slug.length === 1)) {
     const heading = (name: string) => <><p className="eyebrow">{t('booking.eyebrow', language)}</p><h1>{name}</h1>

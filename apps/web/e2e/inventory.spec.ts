@@ -385,12 +385,12 @@ test('paginated venue choices retain off-page, inactive and newly-created select
   await expect(page.getByRole('textbox', { name: tr['inventory.notes'], exact: true })).toHaveValue('Unsaved under inactive venue');
   await locale(page, 'tr');
   await page.goto(`${root}/screens?active=false&venueId=${offpage.id}&pageSize=1`);
-  await expect(page.locator('.table-scroll tbody tr')).toHaveCount(1);
+  await expect(page.locator('.screen-card')).toHaveCount(1);
   await page.getByRole('link', { name: en['common.next'], exact: true }).click();
   await expect(page).toHaveURL(/page=2&active=false&venueId=.*&pageSize=1$/);
   const url = new URL(page.url());
   expect(Object.fromEntries(url.searchParams)).toEqual({ page: '2', active: 'false', venueId: offpage.id, pageSize: '1' });
-  await expect(page.locator('.table-scroll tbody tr')).toContainText(first.screenId);
+  await expect(page.locator('.screen-card')).toContainText(first.screenId);
   await expect(page.locator('#filter-venue')).toHaveValue(offpage.id);
   await page.getByRole('link', { name: en['common.previous'], exact: true }).click();
   await expect(page).toHaveURL(/page=1&active=false&venueId=.*&pageSize=1$/);
