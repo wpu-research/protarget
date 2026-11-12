@@ -286,13 +286,13 @@ Aralık `4ac94d4..33ee215` (Tur 3 düzeltmeleri). Blind Hunter, Edge Case Hunter
 **Reddedilen (8):** `RequestTimeoutException`/`SlowDown` ad listesi gürültüsü (P1'e katlandı); `UploadRace` sarmalanır/yeniden denenir endişesi (doğrulandı: `inventoryTransaction` yalnız Prisma bilinen hatalarını sarar, `UploadRace` geçer; storage `put` işlem dışında, yeniden denemede bayat anahtar yok); genel conflict yedek mesajı (kabul edilebilir yedek); zamanlayıcı sızıntısı (zararsız); timeout+iptal çakışması (nadir); `UPLOAD_UNCONFIRMED` arayüz tüketicisi yok iddiası (CR-2 P9'da `bookingError` eşlemesi var); docs/CAMPAIGNS.md "ilgisiz" iddiası (kodla uyumlu, auditor doğruladı); P1/P2/P3/P5 uygulama uyumsuzluğu bulunmadı.
 
 **Tur 4 düzeltme kaydı (2026-11-12):** P1–P4 uygulandı.
-- P1 S3 `put` hem `name` hem `Code` alanına bakar; geçici liste `RequestTimeout`, `RequestTimeoutException`, `OperationAborted` (`RequestTimeTooSkewed` ve `SlowDown` çıkarıldı: saat kayması yeniden denemeyle düzelmez, `SlowDown` zaten 503). Birim test: yalnız `Code` taşıyan hata yeniden denenir, saat kayması tek denemede biter.
+- P1 S3 `put` hem `name` hem `Code` alanına bakar; geçici liste `RequestTimeout`, `RequestTimeoutException`, `OperationAborted` (`RequestTimeTooSkewed` ve `SlowDown` çıkarıldı: saat kayması yeniden denemeyle düzelmez, `SlowDown` zaten 503 (**Tur 5'te `SlowDown` ve `ThrottlingException` geri eklendi**; `RequestTimeTooSkewed` çıkarılmış kaldı)). Birim test: yalnız `Code` taşıyan hata yeniden denenir, saat kayması tek denemede biter.
 - P2 `upload.ts`: gövde giderken ilerleme olmadan 2 dk (`STALL_MS`) geçerse abort → `SERVICE_UNAVAILABLE`; gövde bittikten sonra yanıt beklemesi 12 dk. İlerleme olayı zamanlayıcıyı yeniden kurar (gövde gittikten sonra kurmaz). Web'de birim test altyapısı olmadığından otomatik testi yok; **takılma/zaman aşımı davranışı hiçbir testte doğrulanmadı.**
 - P3 `upload()` catch'i, `serializable` P2034'ü tüketip `inventoryTransaction`'ın sardığı genel `Inventory conflict` 409'unu da `UploadRace` gibi çözer (aynı checksum'lı kayıt varsa `DUPLICATE_CREATIVE`); kayıt yoksa özgün hata fırlar. (Düzeltme, Tur 5: bu iddia desteksizdi; birleşik-409 yolunun belirleyici testi Tur 5'te eklendi.)
 - P4 yeni entegrasyon testi: `PERFORMED_IN_FUTURE`, `PERFORMED_BEFORE_BOOKING`, `SCREEN_NOT_IN_BOOKING` reason kodları ve PAUSED booking'de revoke → PAUSED kalır + `REVOKED_CREATIVE` uyarısı. **Düzeltme (Tur 5):** Tur 3 kaydı yalnız "revoke LIVE zaten mevcut testte kapsanıyor" der ve PAUSED'dan söz etmez; PAUSED testi Tur 4'te eklendi (önceki not bu ifadeyi yanlış aktarmıştı). Web eşleme birim testleri ve P9/P7 testleri hâlâ yok.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 138 API birim; 91 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi, gerçek ağ takılması.
 
-### Code Review Findings — Tur 5 (2026-11-12) → Düzeltildi, CR-6 bekleniyor
+### Code Review Findings — Tur 5 (2026-11-12) → Düzeltildi (CR-6 incelendi)
 
 Aralık `33ee215..17b5e62` (Tur 4 düzeltmeleri). Blind Hunter, Edge Case Hunter, Acceptance Auditor tamamlandı. 0 intent_gap, 0 bad_spec, 4 patch, 2 defer, 8 reject. Bulgular küçük ve düşük/orta önemde; kod okuma ile doğrulandı, bu turda test çalıştırılmadı.
 
@@ -314,3 +314,15 @@ Aralık `33ee215..17b5e62` (Tur 4 düzeltmeleri). Blind Hunter, Edge Case Hunter
 - P3 `request.send(form)` try/catch içinde; eşzamanlı hata `done()` + `SERVICE_UNAVAILABLE`. Otomatik testi yok.
 - P4 Tur 4 kaydındaki iddialar düzeltildi.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 138 API birim; 92 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi, gerçek ağ takılması.
+
+### Code Review Findings — Tur 6 (2026-11-12) ✅ Onaylandı
+
+Aralık `17b5e62..bf5bba0` (Tur 5 düzeltmeleri). Blind Hunter, Edge Case Hunter, Acceptance Auditor tamamlandı. **0 intent_gap, 0 bad_spec, 0 kod patch'i**, 1 defer, 8 reject. Acceptance Auditor Tur 5 düzeltmelerinin kayıtta yazıldığı gibi uygulandığını doğruladı; tek not, Tur 4 kaydındaki eski "`SlowDown` çıkarıldı" satırının Tur 5'te geri eklenmesine rağmen notsuz kalmasıydı: yalnız geçmiş kaydı, bu turda satıra not düşülerek düzeltildi (kod değişmedi).
+
+**Defer**
+- D23 S3 geçici hata listesi arka uca bağlı kalır (`Throttling`, `RequestLimitExceeded`, `TooManyRequestsException` gibi nadir 4xx adları eklenmedi); gerçek S3 ve yaygın uyumlu arka uçlar 408/429/503 ya da listedeki adları kullanır. Liste gerçek bir arka uç sınaması olmadan büyütülmemeli.
+- D24 Önceki açık defer'lar geçerli: D8–D13, D14–D17, D18–D22.
+
+**Reddedilen (8):** saat kayması testinde 403→400 "zayıflatma" (400 bilinçli seçildi: 403 zaten kalıcı olduğundan eski test adın listeden çıkıp çıkmadığını kanıtlamıyordu); `ThrottlingException` "ölü kod" (zararsız, D23); mesaj eşitliğiyle sınıflama (sabit eklendi; P2002/P2004 yalnız aynı checksum'lı satır varken DUPLICATE'a çevrilir, gerçek mükerrer); `calls === 2` kırılganlığı (Edge Hunter: guard `serializable` çağırmıyor, `--runInBand`, `db` aynı örnek, yorumla belgeli); taklidin yeniden deneme döngüsünü atlaması (amaç eşleme testi); mock sızıntısı (`finally` içinde `mockRestore`); `send()` catch tek çözümleme/sızıntı (Edge Hunter doğruladı); `existing` null koruması (`if (existing)` mevcut).
+
+**Sonuç:** Kod için açık bulgu yok. Doğrulama özeti (Tur 5'te çalıştırıldı, kod bu turda değişmedi): typecheck, lint, build 8/8; 138 API birim; 92 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi, gerçek ağ takılması; web zamanlayıcıları ve `send()` hata yolu için otomatik test yok.

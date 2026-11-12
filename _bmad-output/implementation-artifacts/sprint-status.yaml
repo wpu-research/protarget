@@ -2,4 +2,4 @@ development_status:
   phase-0-foundation: review
   # Technical implementation is done; acceptance awaits Phase 0 prerequisites.
   inventory-manual-multipliers: review
-  campaign-booking: review
+  campaign-booking: done
