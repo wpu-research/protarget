@@ -52,7 +52,7 @@ export function uploadCreative(form: FormData, onProgress: (percent: number) => 
       resolve({ status: request.status, body, sent });
     };
     arm(STALL_MS);
-    request.send(form);
+    try { request.send(form); } catch { done(); reject(new RequestError('SERVICE_UNAVAILABLE', 0)); }
   });
   return (async () => {
     onProgress(0);

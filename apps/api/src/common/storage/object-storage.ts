@@ -51,7 +51,7 @@ export interface S3Settings {
   endpoint?: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; forcePathStyle: boolean;
 }
 /** S3 error names that arrive as 4xx but heal on retry (clock skew does not: it is not listed). */
-const TRANSIENT_S3_ERRORS = ['RequestTimeout', 'RequestTimeoutException', 'OperationAborted'];
+const TRANSIENT_S3_ERRORS = ['RequestTimeout', 'RequestTimeoutException', 'OperationAborted', 'SlowDown', 'ThrottlingException'];
 
 export class S3Storage implements ObjectStorage {
   readonly driver = 's3' as const;

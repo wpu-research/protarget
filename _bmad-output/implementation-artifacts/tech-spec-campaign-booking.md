@@ -268,7 +268,7 @@ Aralık `8f007c9..4ac94d4` (CR-2 düzeltmeleri). Katmanlar: Blind Hunter, Edge C
 - P4 testler: P8 yarışı, P12 S3 4xx, (revoke LIVE zaten mevcut testte kapsanıyor, yeniden eklenmedi). **Yapılmadı:** web eşleme birim testleri (web'de birim test altyapısı yok; E2E ile kısmen örtülü), P9/P7 için ayrı test. P5 `CAMPAIGNS.md` `details.reason` ifadesi CMS hatalarına daraltıldı.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 137 API birim; 90 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi.
 
-### Code Review Findings — Tur 4 (2026-11-12) → Düzeltildi, CR-5 bekleniyor
+### Code Review Findings — Tur 4 (2026-11-12) → Düzeltildi (CR-5 incelendi)
 
 Aralık `4ac94d4..33ee215` (Tur 3 düzeltmeleri). Blind Hunter, Edge Case Hunter, Acceptance Auditor tamamlandı. 0 intent_gap, 0 bad_spec, 4 patch, 3 defer, 8 reject. Kod okuma ile doğrulandı; bu turda test çalıştırılmadı.
 
@@ -288,6 +288,29 @@ Aralık `4ac94d4..33ee215` (Tur 3 düzeltmeleri). Blind Hunter, Edge Case Hunter
 **Tur 4 düzeltme kaydı (2026-11-12):** P1–P4 uygulandı.
 - P1 S3 `put` hem `name` hem `Code` alanına bakar; geçici liste `RequestTimeout`, `RequestTimeoutException`, `OperationAborted` (`RequestTimeTooSkewed` ve `SlowDown` çıkarıldı: saat kayması yeniden denemeyle düzelmez, `SlowDown` zaten 503). Birim test: yalnız `Code` taşıyan hata yeniden denenir, saat kayması tek denemede biter.
 - P2 `upload.ts`: gövde giderken ilerleme olmadan 2 dk (`STALL_MS`) geçerse abort → `SERVICE_UNAVAILABLE`; gövde bittikten sonra yanıt beklemesi 12 dk. İlerleme olayı zamanlayıcıyı yeniden kurar (gövde gittikten sonra kurmaz). Web'de birim test altyapısı olmadığından otomatik testi yok; **takılma/zaman aşımı davranışı hiçbir testte doğrulanmadı.**
-- P3 `upload()` catch'i, `serializable` P2034'ü tüketip `inventoryTransaction`'ın sardığı genel `Inventory conflict` 409'unu da `UploadRace` gibi çözer (aynı checksum'lı kayıt varsa `DUPLICATE_CREATIVE`); kayıt yoksa özgün hata fırlar. Eşzamanlı yükleme testi artık iki yolda da aynı sonucu verir.
-- P4 yeni entegrasyon testi: `PERFORMED_IN_FUTURE`, `PERFORMED_BEFORE_BOOKING`, `SCREEN_NOT_IN_BOOKING` reason kodları ve PAUSED booking'de revoke → PAUSED kalır + `REVOKED_CREATIVE` uyarısı. **Düzeltme (Tur 3 kaydına):** Tur 3'te "P12 S3 testi eklendi" doğru; "LIVE/PAUSED zaten kapsanıyor" ifadesi yalnız LIVE için doğruydu, PAUSED Tur 4'te eklendi. Web eşleme birim testleri ve P9/P7 testleri hâlâ yok.
+- P3 `upload()` catch'i, `serializable` P2034'ü tüketip `inventoryTransaction`'ın sardığı genel `Inventory conflict` 409'unu da `UploadRace` gibi çözer (aynı checksum'lı kayıt varsa `DUPLICATE_CREATIVE`); kayıt yoksa özgün hata fırlar. (Düzeltme, Tur 5: bu iddia desteksizdi; birleşik-409 yolunun belirleyici testi Tur 5'te eklendi.)
+- P4 yeni entegrasyon testi: `PERFORMED_IN_FUTURE`, `PERFORMED_BEFORE_BOOKING`, `SCREEN_NOT_IN_BOOKING` reason kodları ve PAUSED booking'de revoke → PAUSED kalır + `REVOKED_CREATIVE` uyarısı. **Düzeltme (Tur 5):** Tur 3 kaydı yalnız "revoke LIVE zaten mevcut testte kapsanıyor" der ve PAUSED'dan söz etmez; PAUSED testi Tur 4'te eklendi (önceki not bu ifadeyi yanlış aktarmıştı). Web eşleme birim testleri ve P9/P7 testleri hâlâ yok.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 138 API birim; 91 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi, gerçek ağ takılması.
+
+### Code Review Findings — Tur 5 (2026-11-12) → Düzeltildi, CR-6 bekleniyor
+
+Aralık `33ee215..17b5e62` (Tur 4 düzeltmeleri). Blind Hunter, Edge Case Hunter, Acceptance Auditor tamamlandı. 0 intent_gap, 0 bad_spec, 4 patch, 2 defer, 8 reject. Bulgular küçük ve düşük/orta önemde; kod okuma ile doğrulandı, bu turda test çalıştırılmadı.
+
+**Patch**
+- **P1 (orta) — Birleşik 409 tespiti İngilizce mesaj metnine bağlı ve testsiz.** `creatives.service.ts` `foldedConflict`: `error.message === 'Inventory conflict; reload and retry'`; mesaj değişirse düzeltme sessizce devre dışı kalır, hiçbir test kırılmaz. Düzeltme: `inventory-validation.ts`'ten `INVENTORY_CONFLICT_MESSAGE` sabiti dışa aktarılıp hem `inventoryTransaction` hem servis onu kullanır; `PrismaService.serializable` `spyOn` ile P2034 fırlatacak şekilde taklit edilerek (ya da eşdeğer deterministik yolla) aynı dosya + var olan kayıt → `DUPLICATE_CREATIVE`, kayıt yok → özgün 409 davranışını doğrulayan entegrasyon testi eklenir.
+- **P2 (düşük) — S3 testi saat kaymasını kanıtlamıyor; `SlowDown` çıkarılması geriletici olabilir.** Birim testte `RequestTimeTooSkewed` 403 ile atılıyor; 403 zaten kalıcı olduğundan ad listeden çıksa da test geçer. Durumu 400 yap. `SlowDown`'ı (gerçek S3'te 503, MinIO/Ceph/R2'de 4xx olabilir) ve `ThrottlingException`'ı geçici listeye geri ekle.
+- **P3 (düşük) — `request.send()` eşzamanlı hata fırlatırsa temizlik yok.** `upload.ts`: `arm(STALL_MS); request.send(form)` try/catch içine alınmalı; hata → `done()` + `SERVICE_UNAVAILABLE`.
+- **P4 (düşük) — Tur 4 kaydı yanlış/eksik.** (a) "Eşzamanlı yükleme testi artık iki yolda da aynı sonucu verir" iddiası desteksiz: birleşik-409 yolunun belirleyici testi yoktu (P1 ile eklenecek). (b) Düzeltme notu Tur 3 ifadesini yanlış aktarıyor (Tur 3 kaydı "revoke LIVE zaten kapsanıyor" der, PAUSED'dan söz etmez). (c) Birleşik 409 yalnız P2034 tüketimini değil P2002/P2004'ü de kapsar; yorum ve kayıt buna göre düzeltilir.
+
+**Defer**
+- D21 `upload.ts` takılma/yanıt zamanlayıcıları için sahte-zamanlayıcılı birim test (web'de birim test altyapısı yok).
+- D22 Birleşik 409'da kayıt bulunamazsa özgün genel 409 döner (`replacesId` yarışı tükenirse "newer version" mesajı verilmez); kabul edilebilir yedek.
+
+**Reddedilen (8):** ilk ilerleme olayı 2 dk içinde gelmez (TLS/proxy el sıkışması bu kadar uzun sürmez; ilerleme olayı yükleme başlar başlamaz tetiklenir); `timedOut` sıfırlanmaz (her `send()` yeni istek ve yeni değişken); `done()` her yolda çağrılır (Edge Hunter doğruladı); TDZ sorunu yok; P2002/P2004 de birleşik 409'a girer ama yalnız aynı checksum'lı kayıt varsa DUPLICATE'a çevrilir (gerçek mükerrer); yeniden imzalama ile saat kayması iyileşir iddiası (aynı saat yeniden denemede aynı kayma sürer); `creatives[0]` yanlış kreatif endişesi (`readyCampaign` tek kreatifli); test yardımcısı `async` kozmetik.
+
+**Tur 5 düzeltme kaydı (2026-11-12):** P1–P4 uygulandı.
+- P1 `INVENTORY_CONFLICT_MESSAGE` sabiti `inventory-validation.ts`'ten dışa aktarıldı; `inventoryTransaction` ve `creatives.service.ts` aynı sabiti kullanır. Birleşik 409 yalnız tükenen P2034'ü değil P2002/P2004'ü de kapsar (yorum düzeltildi). Yeni entegrasyon testi `db.serializable`'ı `jest.spyOn` ile ikinci çağrıda (kreatif ekleme işlemi) P2034 fırlatacak şekilde taklit eder: aynı dosya + mevcut kayıt → `DUPLICATE_CREATIVE`, mevcut kayıt yok → genel `INVALID_STATE_TRANSITION` 409. (Test ilk denemede ilk `serializable` çağrısının reklamveren çözümü olduğunu ortaya çıkardı; taklit buna göre ayarlandı.)
+- P2 S3 birim testinde saat kayması 400 ile atılır (artık adın listede olmadığını gerçekten sınar); `SlowDown` ve `ThrottlingException` geçici listeye geri eklendi (gerçek S3'te `SlowDown` 503 olup zaten yeniden denenir; MinIO/Ceph/R2'de 4xx olabilir). Yeni birim test eklenmedi: mevcut iki test listeyi kısmen sınar; `SlowDown`/`ThrottlingException` için ayrı test yok.
+- P3 `request.send(form)` try/catch içinde; eşzamanlı hata `done()` + `SERVICE_UNAVAILABLE`. Otomatik testi yok.
+- P4 Tur 4 kaydındaki iddialar düzeltildi.
+- Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 138 API birim; 92 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi, gerçek ağ takılması.

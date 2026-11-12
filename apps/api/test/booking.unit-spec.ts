@@ -374,7 +374,7 @@ describe('object storage', () => {
     }) };
     await new S3Storage(config, generic as never, 1).put(key, source, 'image/png');
     expect(generic.send).toHaveBeenCalledTimes(2);
-    const skewed = { send: jest.fn(async () => { throw Object.assign(new Error('skew'), { name: 'RequestTimeTooSkewed', $metadata: { httpStatusCode: 403 } }); }) };
+    const skewed = { send: jest.fn(async () => { throw Object.assign(new Error('skew'), { name: 'RequestTimeTooSkewed', $metadata: { httpStatusCode: 400 } }); }) };
     await expect(new S3Storage(config, skewed as never, 1).put(key, source, 'image/png')).rejects.toThrow('skew');
     expect(skewed.send).toHaveBeenCalledTimes(1);
   });

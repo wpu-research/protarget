@@ -38,13 +38,16 @@ export function requirePatch(dto: object) {
   if (!Object.values(dto).some(value => value !== undefined)) throw invalid('Provide at least one field');
 }
 
+/** Message of the generic 409 that folds exhausted race/constraint errors (P2002, P2004, P2034). Callers match on this constant. */
+export const INVENTORY_CONFLICT_MESSAGE = 'Inventory conflict; reload and retry';
+
 /** Preserve the existing retry policy; exhausted races/constraints expose no database details. */
 export async function inventoryTransaction<T>(db: PrismaService, work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
   try { return await db.serializable(work); }
   catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (['P2002', 'P2004', 'P2034'].includes(error.code)) {
-        throw conflict('Inventory conflict; reload and retry');
+        throw conflict(INVENTORY_CONFLICT_MESSAGE);
       }
       if (error.code === 'P2025') throw missing('Inventory record');
     }

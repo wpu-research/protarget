@@ -728,6 +728,23 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     expect(warnings).toContain('REVOKED_CREATIVE');
   });
 
+  it('resolves an exhausted serialization conflict on a same-file upload to DUPLICATE_CREATIVE, and leaves other conflicts generic (CR-5)', async () => {
+    const file = fresh('png');
+    const first = (await upload(file, { displayDurationSeconds: '10' }).expect(201)).body;
+    const exhausted = () => new Prisma.PrismaClientKnownRequestError('serialization', { code: 'P2034', clientVersion: 'test' });
+    // upload() first resolves the advertiser in its own transaction: only the insert transaction (the second) is exhausted.
+    const real = db.serializable.bind(db);
+    let calls = 0;
+    const spy = jest.spyOn(db, 'serializable').mockImplementation(((work: never) => (++calls === 2 ? Promise.reject(exhausted()) : real(work))) as never);
+    try {
+      const duplicate = await upload(file, { displayDurationSeconds: '10' }).expect(409);
+      expect(duplicate.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: first.id } });
+      calls = 0;
+      const unrelated = await upload(fresh('png'), { displayDurationSeconds: '10' }).expect(409);
+      expect(unrelated.body.error).toMatchObject({ code: 'INVALID_STATE_TRANSITION' });
+    } finally { spy.mockRestore(); }
+  });
+
   it('enforces database guards independently of the API', async () => {
     const campaign = await db.campaign.findFirstOrThrow({ where: { id: { in: campaigns } } });
     await expect(db.campaign.update({ where: { id: campaign.id }, data: { targetPlayouts: 0n } })).rejects.toThrow();
