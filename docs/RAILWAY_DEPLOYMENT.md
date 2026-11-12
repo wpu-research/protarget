@@ -75,8 +75,9 @@ Aynı test reklamverenine (yükleme için geçici aktif edildi, sonra tekrar pas
   yerelle aynı. `GET /creatives/:id/file` ile S3'ten geri okuma ~31 sn, bayt sayısı
   ve sha256 yüklenenle aynı.
 - 215 MB'lık dosya "Dosya 200 MB sınırını aşıyor." ile reddedildi; ağ kaydında
-  istek gitmedi, yani **istemci tarafı** ret görüldü. Sunucu tarafı 200 MB sınırı
-  canlıda ayrıca sınanmadı.
+  istek gitmedi, yani **istemci tarafı** ret görüldü. Sunucu tarafı için 215 MB'lık
+  çok parçalı istek doğrudan `POST /api/v1/creatives`'e gönderildi: anında `413
+  PAYLOAD_TOO_LARGE`, kreatif kaydı oluşmadı.
 - İki kayıt da `REJECTED` yapıldı (gerekçeyle); onaylanmadı, bir kampanyaya bağlanmadı.
   Test dosyaları yerelde silindi.
 
@@ -96,8 +97,8 @@ Aynı test reklamverenine (yükleme için geçici aktif edildi, sonra tekrar pas
   sayıları aynı kaldı); sonradan eklenen `campaign_booking_review` veri üstünde ayrıca
   denenmedi, canlıda uygulandı.
 
-**Yapılmayanlar (başarılı sayılmaz):** sunucu tarafı 200 MB sınırı (canlıda), gerçek
-ağ takılması testi. D8–D23 defer'ları açık.
+**Yapılmayanlar (başarılı sayılmaz):** gerçek ağ takılması testi. D8–D23 defer'ları
+spec'te (`tech-spec-campaign-booking.md`) açık backlog olarak duruyor.
 
 Geri dönüş: önceki API `99952375-2d85-4e7f-ab89-43d44922c425`, web
 `de68631c-99f2-47c8-8414-e5b9e01f6133` (Railway'de hedeflenerek;

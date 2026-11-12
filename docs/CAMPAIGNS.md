@@ -94,8 +94,8 @@ sunulur; imzalı/herkese açık URL yoktur.
 
 - Compose `storage` profili bu ortamda **çalıştırılamadı** (Docker soketi yok).
   Railway bucket'ı üzerinde gerçek S3 yazma/okuma 12 Kasım 2026'da küçük bir
-  PNG ve ~189 MB MP4 ile canlıda doğrulandı; ağ kesintisi senaryosu ve sunucu
-  tarafı 200 MB sınırı canlıda denenmedi.
+  PNG ve ~189 MB MP4 ile canlıda doğrulandı; sunucu tarafı 200 MB sınırı
+  (413) canlıda doğrulandı; ağ kesintisi senaryosu denenmedi.
 - Antivirüs taraması, otomatik tamamlama, kapasite/pacing formülü, ajans/marka
   görünürlüğü ve teslimat girişi kapsam dışıdır.
 - Depolamaya yazma DB işleminden önce yapılır; işlem düşerse nesne silinir,
