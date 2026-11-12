@@ -142,3 +142,87 @@ export function viewpointFor(slot: ScreenSlot) {
   if (slot.wall === 'bulkhead') return { x: 0, z: slot.z + nz * 2.4, yaw: slot.yaw };
   return { x: slot.x + nx * 0.7, z: slot.z, yaw: slot.yaw };
 }
+
+/* ---------- Istanbul → Princes' Islands (Adalar) stylised map ----------
+ * Layout follows the operator's route-network slide (map pixels × ADALAR_SCALE metres). Distances are NOT to scale.
+ * Routes and ship motion are simulated; no AIS or timetable data exists in the system. */
+export type Region = 'adalar' | 'bosphorus';
+export const ADALAR_SCALE = 14;
+const fromMap = (mx: number, my: number) => ({ x: (mx - 1100) * ADALAR_SCALE, z: (my - 400) * ADALAR_SCALE });
+const toMap = (x: number, z: number) => ({ mx: x / ADALAR_SCALE + 1100, my: z / ADALAR_SCALE + 400 });
+function interp(points: readonly (readonly [number, number])[], v: number): number {
+  if (v <= points[0][0]) return points[0][1];
+  for (let i = 1; i < points.length; i++) if (v <= points[i][0]) {
+    const [a, b] = [points[i - 1], points[i]];
+    return a[1] + ((b[1] - a[1]) * (v - a[0])) / (b[0] - a[0]);
+  }
+  return points[points.length - 1][1];
+}
+const EUROPE_COAST: readonly (readonly [number, number])[] = [[0, 1045], [70, 1032], [245, 1003], [268, 978], [300, 945], [338, 928], [420, 880], [600, 700], [900, 540]];
+const ASIA_COAST: readonly (readonly [number, number])[] = [[0, 1090], [200, 1072], [330, 1078], [377, 1104], [440, 1232], [470, 1246], [482, 1900]];
+export interface AdalarPlace { key: string; name: string; kind: 'pier' | 'island'; mx: number; my: number; radius?: number; hill?: number }
+export const ADALAR_PLACES: readonly AdalarPlace[] = [
+  { key: 'sariyer', name: 'Sarıyer', kind: 'pier', mx: 1037, my: 70 },
+  { key: 'besiktas', name: 'Beşiktaş', kind: 'pier', mx: 1006, my: 245 },
+  { key: 'kabatas', name: 'Kabataş', kind: 'pier', mx: 975, my: 268 },
+  { key: 'eminonu', name: 'Eminönü', kind: 'pier', mx: 940, my: 300 },
+  { key: 'karakoy', name: 'Karaköy', kind: 'pier', mx: 925, my: 338 },
+  { key: 'kadikoy', name: 'Kadıköy', kind: 'pier', mx: 1114, my: 377 },
+  { key: 'bostanci', name: 'Bostancı', kind: 'pier', mx: 1252, my: 468 },
+  { key: 'kinaliada', name: 'Kınalıada', kind: 'island', mx: 892, my: 586, radius: 30, hill: 55 },
+  { key: 'burgazada', name: 'Burgazada', kind: 'island', mx: 1063, my: 651, radius: 36, hill: 75 },
+  { key: 'heybeliada', name: 'Heybeliada', kind: 'island', mx: 1241, my: 659, radius: 50, hill: 105 },
+  { key: 'buyukada', name: 'Büyükada', kind: 'island', mx: 1387, my: 711, radius: 78, hill: 150 },
+];
+export function adalarPlaceWorld(place: AdalarPlace) { return fromMap(place.mx, place.my); }
+
+/** Land height above the waterline (negative = sea floor) for the Adalar map. */
+export function adalarTerrain(x: number, z: number): number {
+  const { mx, my } = toMap(x, z);
+  let inside = Math.max(interp(EUROPE_COAST, my) - mx, mx - interp(ASIA_COAST, my)), cap = 150;
+  for (const p of ADALAR_PLACES) if (p.kind === 'island') {
+    const d = Math.hypot((mx - p.mx) / 1.15, my - p.my), i = p.radius! - d;
+    if (i > inside) { inside = i; cap = p.hill!; }
+  }
+  if (inside < 0) { const k = Math.min(1, (-inside * ADALAR_SCALE) / 90); return -16 * k * k * (3 - 2 * k) - 0.2; }
+  const noise = Math.sin(x * 0.0071 + z * 0.0043) * 0.5 + Math.sin(x * 0.019 - z * 0.013) * 0.3 + Math.sin(x * 0.043 + z * 0.037) * 0.2;
+  return Math.min(inside * ADALAR_SCALE * 0.1, cap) * (0.7 + 0.3 * (noise * 0.5 + 0.5)) + Math.min(inside * ADALAR_SCALE / 30, 1) * 1.5;
+}
+
+/** Simulated ferry lines (map pixels). Every waypoint and leg stays over water (checked by tests). */
+const ROUTE_MAP: readonly (readonly (readonly [number, number])[])[] = [
+  [[1040, 110], [1038, 300], [985, 392], [1000, 500], [1335, 635]],                // Sarıyer → Büyükada
+  [[1000, 258], [988, 380], [1060, 520], [1230, 598]],                             // Beşiktaş/Kabataş → Heybeliada
+  [[950, 322], [960, 420], [1100, 560], [1230, 575], [1325, 640]],                              // Eminönü → Büyükada
+  [[922, 352], [898, 460], [885, 548]],                                            // Karaköy → Kınalıada
+  [[885, 548], [940, 560], [975, 625], [1050, 606]],                                           // Kınalıada → Burgazada
+  [[1112, 392], [1120, 470], [1200, 580], [1240, 598]],                            // Kadıköy → Heybeliada
+  [[1240, 478], [1150, 580], [1066, 608]],                                         // Bostancı → Burgazada
+  [[1262, 484], [1300, 600], [1335, 640]],                                         // Bostancı → Büyükada
+];
+export const ADALAR_ROUTES: readonly (readonly { x: number; z: number }[])[] = ROUTE_MAP.map(r => r.map(([mx, my]) => fromMap(mx, my)));
+
+/** Back-and-forth simulated pose on one of the Adalar lines (route chosen from the id/index). */
+export function adalarPose(id: string, index: number, seconds: number): ShipPose & { route: number } {
+  const rand = seeded(hashString(id));
+  const route = (hashString(id) + index) % ADALAR_ROUTES.length;
+  const pts = ADALAR_ROUTES[route];
+  const speed = 8 + rand() * 4, phase = rand() * 1e5, lane = (rand() - 0.5) * 50;
+  const segments = pts.slice(1).map((p, i) => ({ from: pts[i], to: p, length: Math.hypot(p.x - pts[i].x, p.z - pts[i].z) }));
+  const total = segments.reduce((sum, s) => sum + s.length, 0);
+  const at = (s: number) => {
+    const m = ((s % (2 * total)) + 2 * total) % (2 * total), forward = m <= total;
+    let along = forward ? m : 2 * total - m;
+    for (const seg of segments) {
+      if (along <= seg.length || seg === segments[segments.length - 1]) {
+        const k = Math.min(1, along / seg.length), dx = seg.to.x - seg.from.x, dz = seg.to.z - seg.from.z, n = Math.hypot(dx, dz);
+        const sign = forward ? 1 : -1;
+        return { x: seg.from.x + dx * k + (-dz / n) * lane, z: seg.from.z + dz * k + (dx / n) * lane, heading: Math.atan2(dx * sign, dz * sign) };
+      }
+      along -= seg.length;
+    }
+    throw new Error('unreachable');
+  };
+  const p = at(phase + speed * seconds);
+  return { ...p, speed, route };
+}

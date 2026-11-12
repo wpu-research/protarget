@@ -97,3 +97,23 @@ test('viewpoints stand in an aisle and face the screen', () => {
     assert.ok((forward[0] * toScreen[0] + forward[1] * toScreen[1]) / len > 0.75, `slot ${i} faces the screen`);
   }
 });
+test('Adalar: every simulated route leg stays over water and ships reach each line', async () => {
+  const { ADALAR_ROUTES, adalarTerrain, adalarPose, ADALAR_PLACES } = await import('../src/lib/fleet-sim.ts');
+  ADALAR_ROUTES.forEach((route, i) => {
+    for (let k = 1; k < route.length; k++) {
+      const a = route[k - 1], b = route[k], n = Math.ceil(Math.hypot(b.x - a.x, b.z - a.z) / 40);
+      for (let j = 0; j <= n; j++) assert.ok(adalarTerrain(a.x + (b.x - a.x) * j / n, a.z + (b.z - a.z) * j / n) <= -3, `route ${i} leg ${k} over water`);
+    }
+  });
+  const routes = new Set();
+  for (let n = 0; n < 40; n++) {
+    const id = `ship-${n}`, a = adalarPose(id, n, 10), b = adalarPose(id, n, 11);
+    routes.add(a.route);
+    assert.deepEqual(a, adalarPose(id, n, 10));
+    assert.ok(Math.hypot(a.x - b.x, a.z - b.z) < 20 && Number.isFinite(a.heading));
+    for (const t of [0, 500, 5000, 86400]) assert.ok(adalarTerrain(adalarPose(id, n, t).x, adalarPose(id, n, t).z) < 0, 'ship over water');
+  }
+  assert.equal(routes.size, ADALAR_ROUTES.length);
+  assert.equal(ADALAR_PLACES.filter(p => p.kind === 'pier').length, 7);
+  assert.equal(ADALAR_PLACES.filter(p => p.kind === 'island').length, 4);
+});

@@ -3,7 +3,7 @@ import { Component, useCallback, useEffect, useMemo, useRef, useState, type Reac
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import type { FleetScene, FleetScreen, FleetShip } from '@protarget/shared';
-import { SALOON, detectQuality, resolutionLabel, resolveQuality, type Quality, type QualityChoice } from '@/lib/fleet-sim';
+import { SALOON, detectQuality, resolutionLabel, resolveQuality, type Quality, type QualityChoice, type Region } from '@/lib/fleet-sim';
 import { useLocale, useText } from '../Locale';
 import type { FleetMode, MoveInput } from './Scene';
 
@@ -67,6 +67,7 @@ export function FleetView({ scene, includeInactive }: { scene: FleetScene; inclu
   const [hovered, setHovered] = useState<string | null>(null);
   const [selectedScreenId, setSelectedScreenId] = useState<string | null>(null);
   const [goto, setGoto] = useState<{ screenId: string; nonce: number } | null>(null);
+  const [region, setRegion] = useState<Region>('adalar');
   const [choice, setChoice] = useState<QualityChoice>('auto');
   const [detected, setDetected] = useState<Quality | null>(null);
   const [webgl, setWebgl] = useState(true);
@@ -116,16 +117,21 @@ export function FleetView({ scene, includeInactive }: { scene: FleetScene; inclu
   return <div className="fleet" data-mode={mode} data-quality={quality ?? 'pending'} data-testid="fleet-root">
     <div className="fleet-stage" ref={stage} role="group" aria-label={text('fleet.canvasLabel')}>
       {webgl && quality && <SceneBoundary fallback={() => setWebgl(false)}>
-        <FleetCanvas ships={scene.ships} quality={quality} mode={mode} shipId={shipId} highlightedShipId={hovered}
+        <FleetCanvas ships={scene.ships} quality={quality} region={region} mode={mode} shipId={shipId} highlightedShipId={hovered}
           selectedScreenId={selectedScreenId} goto={goto} input={input} reducedMotion={reducedMotion}
           onEnter={enter} onFlightDone={flightDone} onSelectScreen={selectScreen} onContextLost={() => setWebgl(false)} labelFor={labelFor} />
       </SceneBoundary>}
       {!webgl && <p className="fleet-fallback" role="status">{text('fleet.noWebgl')}</p>}
       <div className="fleet-overlay top-left">
         <span className="fleet-badge" data-testid="fleet-sim-badge">{text('fleet.simBadge')}</span>
-        <span className="fleet-subnote">{text('fleet.scaleNote')}</span>
+        <span className="fleet-subnote">{text(region === 'adalar' ? 'fleet.scaleNote.adalar' : 'fleet.scaleNote')}</span>
       </div>
       <div className="fleet-overlay top-right">
+        <label className="fleet-quality">{text('fleet.region')}
+          <select value={region} disabled={mode !== 'overview'} onChange={e => setRegion(e.target.value as Region)} data-testid="fleet-region">
+            <option value="adalar">{text('fleet.region.adalar')}</option>
+            <option value="bosphorus">{text('fleet.region.bosphorus')}</option>
+          </select></label>
         <label className="fleet-quality">{text('fleet.quality')}
           <select value={choice} onChange={e => setChoice(e.target.value as QualityChoice)}>
             <option value="auto">{text('fleet.quality.auto')}</option>

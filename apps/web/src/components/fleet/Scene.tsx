@@ -4,15 +4,15 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { FleetShip } from '@protarget/shared';
-import { SALOON, screenSlot, shipPose, viewpointFor, walk, type Quality } from '@/lib/fleet-sim';
-import { Atmosphere, Bridges, Buildings, Land, Sea } from './World';
+import { SALOON, adalarPose, screenSlot, shipPose, viewpointFor, walk, type Quality, type Region } from '@/lib/fleet-sim';
+import { AdalarBuildings, AdalarPlaces, Atmosphere, Bridges, Buildings, Land, Sea } from './World';
 import { Ship } from './Ship';
 import { LabelRenderer } from './Labels';
 
 export type FleetMode = 'overview' | 'entering' | 'interior' | 'leaving';
 export interface MoveInput { forward: boolean; back: boolean; left: boolean; right: boolean }
 export interface SceneProps {
-  ships: FleetShip[]; quality: Quality; mode: FleetMode; shipId: string | null;
+  ships: FleetShip[]; quality: Quality; region: Region; mode: FleetMode; shipId: string | null;
   highlightedShipId: string | null; selectedScreenId: string | null;
   goto: { screenId: string; nonce: number } | null;
   input: MutableRefObject<MoveInput>; reducedMotion: boolean;
@@ -57,6 +57,7 @@ function Rig(props: SceneProps & { groups: MutableRefObject<Map<string, THREE.Gr
     const gq = group.getWorldQuaternion(new THREE.Quaternion());
     const local = (yaw: number, pitch: number) => gq.clone().multiply(lookQuat(yaw, pitch));
     camera.near = 0.1; camera.updateProjectionMatrix();
+    group.scale.setScalar(1); group.updateWorldMatrix(true, true);
     if (mode === 'entering') {
       const sx = group.worldToLocal(camera.position.clone()).x >= 0 ? 1 : -1;
       side.current = sx;
@@ -84,8 +85,13 @@ function Rig(props: SceneProps & { groups: MutableRefObject<Map<string, THREE.Gr
     }
   }, [mode, shipId, camera, groups, reducedMotion, side]);
 
-  // Overview camera limits.
+  // Overview camera limits and per-region home view.
   useEffect(() => { if (mode === 'overview') { camera.near = 2; camera.updateProjectionMatrix(); } }, [mode, camera]);
+  useEffect(() => {
+    const home = props.region === 'adalar' ? { p: [2800, 5200, 5800], t: [500, 0, 150] } : { p: [300, 170, 560], t: [0, 30, -200] };
+    camera.position.set(home.p[0], home.p[1], home.p[2]);
+    if (controls.current) { controls.current.target.set(home.t[0], home.t[1], home.t[2]); controls.current.update(); }
+  }, [props.region]);
 
   // Keyboard + drag look, active only inside the ship.
   useEffect(() => {
@@ -171,7 +177,7 @@ function Rig(props: SceneProps & { groups: MutableRefObject<Map<string, THREE.Gr
   });
 
   return <OrbitControls ref={controls} makeDefault enabled={mode === 'overview'} enableDamping dampingFactor={0.08}
-    target={[0, 30, -200]} minDistance={25} maxDistance={quality === 'high' ? 4200 : 3200} maxPolarAngle={1.5} />;
+    target={[0, 30, -200]} minDistance={25} maxDistance={props.region === 'adalar' ? 14000 : quality === 'high' ? 4200 : 3200} maxPolarAngle={1.5} />;
 }
 
 function Fleet(props: SceneProps) {
@@ -187,8 +193,9 @@ function Fleet(props: SceneProps) {
       const held = mode !== 'overview' && ship.id === shipId;
       if (held) lag.current.set(ship.id, (lag.current.get(ship.id) ?? 0) + Math.min(delta, 0.1));
       const t = clock.current - (lag.current.get(ship.id) ?? 0);
-      const pose = shipPose(ship.id, index, t);
+      const pose = props.region === 'adalar' ? adalarPose(ship.id, index, t) : shipPose(ship.id, index, t);
       group.position.set(pose.x, held ? 0 : Math.sin(t * 1.1 + index) * 0.12, pose.z);
+      group.scale.setScalar(props.region === 'adalar' && mode === 'overview' ? 4 : 1);
       group.rotation.set(held ? 0 : Math.sin(t * 0.8 + index * 2) * 0.006, pose.heading, 0);
     });
   }, -10);
@@ -205,13 +212,12 @@ function Fleet(props: SceneProps) {
 export default function FleetScene(props: SceneProps) {
   const high = props.quality === 'high';
   return <Canvas dpr={high ? [1, 2] : 1} gl={{ antialias: high, powerPreference: 'high-performance' }}
-    camera={{ position: [300, 170, 560], fov: 55, near: 2, far: 30000 }}
+    camera={{ position: [300, 170, 560], fov: 55, near: 2, far: 40000 }}
     onCreated={({ gl }) => { gl.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); props.onContextLost(); }); }}>
-    <Atmosphere quality={props.quality} />
-    <Sea quality={props.quality} />
-    <Land quality={props.quality} />
-    <Buildings quality={props.quality} />
-    <Bridges />
+    <Atmosphere quality={props.quality} region={props.region} />
+    <Sea quality={props.quality} region={props.region} />
+    <Land quality={props.quality} region={props.region} />
+    {props.region === 'adalar' ? <><AdalarBuildings quality={props.quality} /><AdalarPlaces /></> : <><Buildings quality={props.quality} /><Bridges /></>}
     <Fleet {...props} />
     <LabelRenderer />
   </Canvas>;

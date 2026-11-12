@@ -663,5 +663,9 @@
   "fleet.bridge.july15": "15 Temmuz Şehitler Köprüsü",
   "fleet.bridge.fsm": "Fatih Sultan Mehmet Köprüsü",
   "fleet.bridge.yss": "Yavuz Sultan Selim Köprüsü",
-  "fleet.selectScreenHint": "Bir ekran seçin: 3D sahnede ekrana tıklayın veya gemi listesinden seçin."
+  "fleet.selectScreenHint": "Bir ekran seçin: 3D sahnede ekrana tıklayın veya gemi listesinden seçin.",
+  "fleet.region": "Bölge",
+  "fleet.region.adalar": "İstanbul — Adalar",
+  "fleet.region.bosphorus": "Boğaz",
+  "fleet.scaleNote.adalar": "Stilize harita: mesafeler ölçeksiz, rotalar simülasyondur."
 }

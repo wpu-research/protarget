@@ -663,5 +663,9 @@
   "fleet.bridge.july15": "15 July Martyrs Bridge",
   "fleet.bridge.fsm": "Fatih Sultan Mehmet Bridge",
   "fleet.bridge.yss": "Yavuz Sultan Selim Bridge",
-  "fleet.selectScreenHint": "Select a screen: click it in the 3D scene or pick it from the ship list."
+  "fleet.selectScreenHint": "Select a screen: click it in the 3D scene or pick it from the ship list.",
+  "fleet.region": "Area",
+  "fleet.region.adalar": "Istanbul — Princes’ Islands",
+  "fleet.region.bosphorus": "Bosphorus",
+  "fleet.scaleNote.adalar": "Stylised map: distances are not to scale, routes are simulated."
 }

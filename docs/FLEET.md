@@ -3,6 +3,10 @@
 Story: `story/fleet-3d` (spec: `_bmad-output/implementation-artifacts/tech-spec-fleet-3d.md`).
 Yalnız ADMIN. Menü: **Filo / 3D** (`/admin/fleet`). Yerel; Railway'e yayımlanmadı.
 
+## Bölgeler
+
+**İstanbul — Adalar** (varsayılan, stilize slayt haritası) ve **Boğaz** (üç köprü). Bölge seçici sağ üstte. Adalar hatları ve gemi atamaları simülasyondur.
+
 ## Ne gösterir
 
 Stilize İstanbul Boğazı sahnesi (15 Temmuz Şehitler, Fatih Sultan Mehmet, Yavuz Sultan Selim köprüleri),

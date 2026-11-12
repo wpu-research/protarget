@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
 import { Water } from 'three/addons/objects/Water.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { BRIDGES, STRAIT, centerX, halfWidth, seeded, terrainHeight, type BridgeSpec, type Quality } from '@/lib/fleet-sim';
+import { ADALAR_PLACES, ADALAR_SCALE, BRIDGES, STRAIT, adalarPlaceWorld, adalarTerrain, centerX, halfWidth, seeded, terrainHeight, type BridgeSpec, type Quality, type Region } from '@/lib/fleet-sim';
 import { useText } from '../Locale';
 import { Label2D } from './Labels';
 
@@ -32,7 +32,7 @@ function waveNormals(size: number): THREE.DataTexture {
   return texture;
 }
 
-export function Atmosphere({ quality }: { quality: Quality }) {
+export function Atmosphere({ quality, region = 'bosphorus' }: { quality: Quality; region?: Region }) {
   const scene = useThree(state => state.scene);
   const sky = useMemo(() => {
     const s = new Sky(); s.scale.setScalar(20000);
@@ -43,9 +43,9 @@ export function Atmosphere({ quality }: { quality: Quality }) {
   }, []);
   useEffect(() => {
     const previous = scene.fog;
-    scene.fog = new THREE.FogExp2('#b9ccd4', quality === 'high' ? 0.00019 : 0.00026);
+    scene.fog = new THREE.FogExp2('#b9ccd4', region === 'adalar' ? 0.00011 : quality === 'high' ? 0.00019 : 0.00026);
     return () => { scene.fog = previous; sky.material.dispose(); sky.geometry.dispose(); };
-  }, [scene, quality, sky]);
+  }, [scene, quality, region, sky]);
   return <>
     <primitive object={sky} />
     <hemisphereLight args={['#cfe3f2', '#6f7a63', 1.15]} />
@@ -53,38 +53,40 @@ export function Atmosphere({ quality }: { quality: Quality }) {
   </>;
 }
 
-export function Sea({ quality }: { quality: Quality }) {
+export function Sea({ quality, region = 'bosphorus' }: { quality: Quality; region?: Region }) {
+  const size = region === 'adalar' ? 24000 : 9000, center: [number, number, number] = region === 'adalar' ? [500, 0, 0] : [0, 0, -1000];
   const high = quality === 'high';
   const water = useMemo(() => {
     if (!high) return null;
-    const w = new Water(new THREE.PlaneGeometry(9000, 9000), {
+    const w = new Water(new THREE.PlaneGeometry(size, size), {
       textureWidth: 512, textureHeight: 512, waterNormals: waveNormals(128),
       sunDirection: SUN_DIRECTION.clone(), sunColor: 0xfff1d6, waterColor: SEA_COLOR, distortionScale: 0.9, fog: true,
     });
     w.rotation.x = -Math.PI / 2;
     (w.material as THREE.ShaderMaterial).uniforms.size.value = 1.1;
     return w;
-  }, [high]);
+  }, [high, size]);
   useFrame((_, delta) => { if (water) (water.material as THREE.ShaderMaterial).uniforms.time.value += delta * 0.35; });
   useEffect(() => () => { water?.geometry.dispose(); (water?.material as THREE.Material | undefined)?.dispose(); }, [water]);
-  if (water) return <primitive object={water} position={[0, 0, -1000]} />;
-  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, -1000]}>
-    <planeGeometry args={[9000, 9000]} /><meshStandardMaterial color={SEA_COLOR} roughness={0.35} metalness={0.2} />
+  if (water) return <primitive object={water} position={center} />;
+  return <mesh rotation={[-Math.PI / 2, 0, 0]} position={center}>
+    <planeGeometry args={[size, size]} /><meshStandardMaterial color={SEA_COLOR} roughness={0.35} metalness={0.2} />
   </mesh>;
 }
 
 const LAND_LOW = new THREE.Color('#9aa57e'), LAND_HIGH = new THREE.Color('#5f7a4a'), SAND = new THREE.Color('#bfb594');
-export function Land({ quality }: { quality: Quality }) {
+export function Land({ quality, region = 'bosphorus' }: { quality: Quality; region?: Region }) {
+  const adalar = region === 'adalar';
   const geometry = useMemo(() => {
-    const [sx, sz] = quality === 'high' ? [230, 270] : [110, 130];
-    const g = new THREE.PlaneGeometry(9000, 9000, sx, sz);
+    const [sx, sz] = adalar ? (quality === 'high' ? [330, 330] : [150, 150]) : (quality === 'high' ? [230, 270] : [110, 130]);
+    const g = new THREE.PlaneGeometry(adalar ? 17000 : 9000, adalar ? 17000 : 9000, sx, sz);
     g.rotateX(-Math.PI / 2);
     const position = g.attributes.position as THREE.BufferAttribute;
     const colors = new Float32Array(position.count * 3);
     const c = new THREE.Color();
     for (let i = 0; i < position.count; i++) {
-      const x = position.getX(i), z = position.getZ(i) - 1000;
-      const h = terrainHeight(x, z);
+      const x = position.getX(i) + (adalar ? 500 : 0), z = adalar ? position.getZ(i) : position.getZ(i) - 1000;
+      const h = adalar ? adalarTerrain(x, z) : terrainHeight(x, z);
       position.setY(i, h);
       const t = THREE.MathUtils.clamp(h / 70, 0, 1);
       c.copy(LAND_LOW).lerp(LAND_HIGH, t);
@@ -95,9 +97,9 @@ export function Land({ quality }: { quality: Quality }) {
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     g.computeVertexNormals();
     return g;
-  }, [quality]);
+  }, [quality, adalar]);
   useEffect(() => () => geometry.dispose(), [geometry]);
-  return <mesh geometry={geometry} position={[0, 0, -1000]}><meshLambertMaterial vertexColors /></mesh>;
+  return <mesh geometry={geometry} position={adalar ? [500, 0, 0] : [0, 0, -1000]}><meshLambertMaterial vertexColors /></mesh>;
 }
 
 const FACADES = ['#e6dcc6', '#d9c9a8', '#c9785a', '#d8b48a', '#ece6da', '#b9b2a4', '#caa68a', '#e2c9a0'];
@@ -200,3 +202,39 @@ function Bridge({ spec }: { spec: BridgeSpec }) {
   </group>;
 }
 export function Bridges() { return <>{BRIDGES.map(spec => <Bridge key={spec.key} spec={spec} />)}</>; }
+
+/** Adalar: scattered buildings, piers with name labels and island labels. */
+export function AdalarBuildings({ quality }: { quality: Quality }) {
+  const mesh = useMemo(() => {
+    const count = quality === 'high' ? 3200 : 800, rand = seeded(11);
+    const geometry = new THREE.BoxGeometry(1, 1, 1); geometry.translate(0, 0.5, 0);
+    const m = new THREE.InstancedMesh(geometry, new THREE.MeshLambertMaterial({ color: '#ffffff' }), count);
+    const dummy = new THREE.Object3D(), color = new THREE.Color();
+    let placed = 0;
+    for (let attempt = 0; attempt < count * 14 && placed < count; attempt++) {
+      const x = -2800 + rand() * 7600, z = -4700 + rand() * 9400, g = adalarTerrain(x, z);
+      if (g < 1.5 || g > 90) continue;
+      const nearIsland = ADALAR_PLACES.some(p => p.kind === 'island' && Math.hypot(x - adalarPlaceWorld(p).x, z - adalarPlaceWorld(p).z) < (p.radius ?? 0) * ADALAR_SCALE * 1.2);
+      if (!nearIsland && rand() < 0.35) continue;                // islands are denser, as on the map
+      const w = 12 + rand() * 18, d = 12 + rand() * 18, h = 7 + rand() * (nearIsland ? 9 : 24);
+      dummy.position.set(x, g - 1, z); dummy.scale.set(w, h + 1, d); dummy.rotation.y = rand() * 0.8 - 0.4; dummy.updateMatrix();
+      m.setMatrixAt(placed, dummy.matrix); m.setColorAt(placed, color.set(FACADES[Math.floor(rand() * FACADES.length)])); placed++;
+    }
+    m.count = placed; m.instanceMatrix.needsUpdate = true; if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    return m;
+  }, [quality]);
+  useEffect(() => () => { mesh.geometry.dispose(); (mesh.material as THREE.Material).dispose(); mesh.dispose(); }, [mesh]);
+  return <primitive object={mesh} />;
+}
+
+export function AdalarPlaces() {
+  return <>{ADALAR_PLACES.map(place => {
+    const { x, z } = adalarPlaceWorld(place);
+    const island = place.kind === 'island';
+    return <group key={place.key} position={[x, 0, z]}>
+      {!island && <mesh position={[0, 2, 0]}><boxGeometry args={[70, 4, 24]} /><meshLambertMaterial color="#8a5a2b" /></mesh>}
+      {!island && <mesh position={[0, 10, 0]}><boxGeometry args={[30, 12, 16]} /><meshLambertMaterial color="#eee6d3" /></mesh>}
+      <Label2D position={[0, island ? 190 : 46, 0]} className={island ? 'fleet-place-label island' : 'fleet-place-label'} text={place.name} />
+    </group>;
+  })}</>;
+}
