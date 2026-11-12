@@ -50,6 +50,9 @@ export class LocalDiskStorage implements ObjectStorage {
 export interface S3Settings {
   endpoint?: string; region: string; bucket: string; accessKeyId: string; secretAccessKey: string; forcePathStyle: boolean;
 }
+/** S3 error names that arrive as 4xx but heal on retry. */
+const TRANSIENT_S3_ERRORS = ['RequestTimeout', 'RequestTimeTooSkewed', 'OperationAborted', 'SlowDown', 'RequestTimeoutException'];
+
 export class S3Storage implements ObjectStorage {
   readonly driver = 's3' as const;
   private readonly client: S3Client;
@@ -74,8 +77,11 @@ export class S3Storage implements ObjectStorage {
       } catch (error) {
         body.destroy();
         const status = (error as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
-        // 4xx other than 429/408 (AccessDenied, NoSuchBucket, ...) will not heal by waiting.
-        const permanent = status !== undefined && status >= 400 && status < 500 && status !== 429 && status !== 408;
+        // 4xx other than 429/408 (AccessDenied, NoSuchBucket, ...) will not heal by waiting. S3 reports some transient
+        // faults as 400/409 by error name, so those names are retried too.
+        const name = (error as { name?: string; Code?: string }).name ?? (error as { Code?: string }).Code;
+        const transient = status === 408 || status === 429 || (name !== undefined && TRANSIENT_S3_ERRORS.includes(name));
+        const permanent = status !== undefined && status >= 400 && status < 500 && !transient;
         if (permanent || attempt >= attempts) throw error;
         await new Promise(resolve => setTimeout(resolve, this.retryDelayMs * attempt));
       }

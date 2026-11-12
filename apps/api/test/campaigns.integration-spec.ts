@@ -699,6 +699,15 @@ describe('Campaign booking — isolated real PostgreSQL', () => {
     expect((await api('get', live.path).expect(200)).body.screens[0].lastCmsOperation).toMatchObject({ type: 'PLAYBACK_PAUSED' });
   });
 
+  it('maps a concurrent upload of the same file to DUPLICATE_CREATIVE instead of a generic conflict (CR-3)', async () => {
+    const file = fresh('png');
+    const results = await Promise.all([upload(file, { displayDurationSeconds: '10' }), upload(file, { displayDurationSeconds: '10' })]);
+    const statuses = results.map(response => response.status).sort();
+    expect(statuses).toEqual([201, 409]);
+    const loser = results.find(response => response.status === 409)!;
+    expect(loser.body.error).toMatchObject({ code: 'DUPLICATE_CREATIVE', details: { creativeId: results.find(response => response.status === 201)!.body.id } });
+  });
+
   it('enforces database guards independently of the API', async () => {
     const campaign = await db.campaign.findFirstOrThrow({ where: { id: { in: campaigns } } });
     await expect(db.campaign.update({ where: { id: campaign.id }, data: { targetPlayouts: 0n } })).rejects.toThrow();

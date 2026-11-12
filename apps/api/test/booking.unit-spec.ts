@@ -346,6 +346,22 @@ describe('object storage', () => {
       .put(key, source, 'image/png')).rejects.toThrow('down');
     expect(failing.send).toHaveBeenCalledTimes(3);
   });
+  it('retries S3 puts only for faults that can heal: permanent 4xx fail at once, named transient 4xx are retried (CR-3)', async () => {
+    const root = mkdtempSync(join(tmpdir(), 's3retry4xx-'));
+    const source = join(root, 'src.bin');
+    writeFileSync(source, 'abcdef');
+    const config = { bucket: 'b', region: 'eu', accessKeyId: 'AK', secretAccessKey: 'SK', forcePathStyle: true };
+    const denied = { send: jest.fn(async () => { throw Object.assign(new Error('denied'), { name: 'AccessDenied', $metadata: { httpStatusCode: 403 } }); }) };
+    await expect(new S3Storage(config, denied as never, 1).put(key, source, 'image/png')).rejects.toThrow('denied');
+    expect(denied.send).toHaveBeenCalledTimes(1);
+    let calls = 0;
+    const flaky = { send: jest.fn(async () => {
+      if (++calls < 3) throw Object.assign(new Error('slow'), { name: 'RequestTimeout', $metadata: { httpStatusCode: 400 } });
+      return {};
+    }) };
+    await new S3Storage(config, flaky as never, 1).put(key, source, 'image/png');
+    expect(flaky.send).toHaveBeenCalledTimes(3);
+  });
   it('disables SDK-level retries on the real client (maxAttempts 1)', async () => {
     const storage = new S3Storage({ bucket: 'b', region: 'eu', accessKeyId: 'AK', secretAccessKey: 'SK', forcePathStyle: true });
     const client = (storage as unknown as { client: { config: { maxAttempts: () => Promise<number> } } }).client;

@@ -198,7 +198,7 @@ Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (hepsi tamamlandı
 
 **Tur 1 düzeltme kaydı (2026-11-11):** G1–G3 kullanıcının "Önerilenlerle düzelt" kararıyla; P1–P32 uygulandı (P33 defer). Yeni migration `20261111000100_campaign_booking_review` (yalnız ekleme; test DB satır sayıları önce/sonra aynı). Bilinçli davranış: LIVE/PAUSED'da bitişi uzatmak plan değişikliğidir; yeniden LIVE'a geçmeden önce yeni CMS_UPLOADED kaydı gerekir. Ana oturum doğrulaması: build 8/8, typecheck, lint temiz; 136 API + 2 web unit, 88 integration, 42 E2E geçti. Unit-only: 23514 eşlemesi, ffprobe kesinti (503), döndürme, gerçek S3 yeniden denemesi.
 
-### Code Review Findings — Tur 2 (2026-11-11) → Düzeltildi, CR-3 bekleniyor
+### Code Review Findings — Tur 2 (2026-11-11) → Düzeltildi (CR-3 incelendi)
 
 Aralık `c6609b9..8f007c9`. Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (hepsi tamamlandı). CR-1'in G1–G3 ve P1–P32 maddeleri büyük ölçüde doğru uygulanmış; yeni bulgular çoğunlukla düşük/orta. Bu turda çalıştırılan test yok; yalnız kodda doğrulama yapıldı. **1 intent_gap, 14 patch, 6 defer**; 11 red.
 
@@ -241,3 +241,29 @@ Aralık `c6609b9..8f007c9`. Katmanlar: Blind Hunter, Edge Case Hunter, Acceptanc
 - P6 MP4 markası kara listeyle (`qt`, `3g*`) reddedilir, diğer ISO markaları kabul. P7 kreatif sayfası kesilme uyarısı. P8 eşzamanlı yüklemede P2002 → `DUPLICATE_CREATIVE`/yeni sürüm çakışması. P9 yükleme `timeout` 12 dk + 2xx ama okunamayan yanıtta `UPLOAD_UNCONFIRMED` mesajı. P11 arayüz son-işlem `NOTE`'u dışlar. P12 S3 `put` kalıcı 4xx'te yeniden denemez. P14 CMS hataları `details.reason` kodu taşır, istemci kodu okur (regex yedek).
 - **Reddedilen/yapılmayan:** P10 (unlink sonrası `campaign.updatedAt` değiştiği için doğrulama zaten yenileniyor, `CampaignDetail.tsx:46`); P13 (DTO `overdeliveryTolerancePct: null`'u 400 ile reddediyor; test eklendi). Defer D8–D13 açık.
 - Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 136 API birim; 89 integration (88 + 1 yeni); 43 E2E (42 + 1 yeni). Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi.
+
+### Code Review Findings — Tur 3 (2026-11-11) → Düzeltildi, CR-4 bekleniyor
+
+Aralık `8f007c9..4ac94d4` (CR-2 düzeltmeleri). Katmanlar: Blind Hunter, Edge Case Hunter, Acceptance Auditor (üçü de tamamlandı). 0 intent_gap, 0 bad_spec, 5 patch, 4 defer, 7 reject. Kod okuma ile doğrulandı; testler bu turda çalıştırılmadı.
+
+**Patch**
+- **P1 (orta) — CR-2 P8 ölü kod.** `creatives.service.ts` ~L164–171: `inventoryTransaction` (`common/inventory-validation.ts:41-52`) P2002/P2004/P2034'ü `conflict('Inventory conflict…')` (409 `INVALID_STATE_TRANSITION`) olarak sarar; dıştaki `PrismaClientKnownRequestError` dalı hiç çalışmaz. Eşzamanlı aynı-dosya yüklemesinin kaybeden tarafı yine genel 409 alır. Düzeltme: `tx.creative.create` çevresinde P2002'yi işlemin içinde sentinel hataya çevir, işlem bittikten sonra `this.db` ile mevcut kaydı yeniden sorgulayıp `DUPLICATE_CREATIVE` (REVOKED ise REVOKED mesajı, `details.status` ile) veya "newer version" fırlat. Eşzamanlı yükleme için entegrasyon testi ekle.
+- **P2 (düşük-orta) — Yanıt kaybı UPLOAD_UNCONFIRMED sayılmıyor.** `apps/web/src/lib/upload.ts`: gövde tamamen gönderildikten (`upload.onload`) sonra `ontimeout`/`onerror` veya kodsuz 5xx gelirse `UPLOAD_UNCONFIRMED` dönmeli; şu an `SERVICE_UNAVAILABLE` (kör yeniden deneme → şaşırtıcı mükerrer hatası). 12 dk toplam zaman aşımı yavaş hatta 200 MB'ı keser; gönderim bitmeden zaman aşımı yerine ilerleme/boşta temelli sınır düşün.
+- **P3 (düşük-orta) — S3 geçici 400/409 kalıcı sayılıyor.** `object-storage.ts` ~L76–79: `RequestTimeout`, `RequestTimeTooSkewed`, `OperationAborted` hata adları yeniden denenmeli (408/429'a ek).
+- **P4 (düşük) — Test boşlukları.** Eklenecek: P8 eşzamanlı yükleme, P12 (kalıcı 4xx yeniden denenmez / geçici denenir), revoke'un LIVE/PAUSED kampanyalara yine uygulandığı, gelecek `performedAt` testinde `details.reason` doğrulaması, web eşlemeleri (`duplicateRevoked`, `uploadUnconfirmed`, reason kodları) ve P9 `UPLOAD_UNCONFIRMED`. P7 yalnız arayüz uyarısı; E2E ile örtülmedi, düşük öncelik.
+- **P5 (düşük) — Belge notu.** `docs/CAMPAIGNS.md`: "Hata yanıtları `details.reason` kodu taşır" yalnız CMS kaydı hataları için doğru; ifadeyi daralt.
+
+**Defer**
+- D14 Migration geri doldurması `LEAST(updatedAt, ilk CMS_UPLOADED)` plan değişikliğinden önceki eski kanıtı taze sayabilir. CR-2 P5 bilinçli ödünleşimi; migration dağıtılmadı, yalnız mevcut dev/test satırlarını etkiler.
+- D15 ffprobe çökme sinyallerini (SIGSEGV/SIGABRT) dosya özelliği saymak, bozuk kurulumda her yüklemeyi `UNREADABLE_MEDIA` yapıp operasyon arızasını gizleyebilir; izleme/log eklenmeli.
+- D16 `useLocale().startsWith('tr')` yeni virgül-ondalıklı yerel ayarlarda (de, fr…) yanlış davranır; yeni dil eklenirken ele alınmalı.
+- D17 P11: `screenRows` (geçirilen `screens`) ile `screensLacking` (`row.screens`) aktif-ekran filtresi tam hizalı değil; kozmetik.
+
+**Reddedilen (7):** `booking.listTruncated`/`orgsTruncated` eksik (doğrulandı, mevcut); `isMp4Brand` kara liste güvenlik gerilemesi (CR-2 P6 kararı; `mp4` format_name + h264 + süre kapıları kalıyor); TR `1.500,50` reddi (istemci doğrulaması açık hata verir, sessiz değil); `maxPlayoutsPerHourPerScreen` NaN (yalnız bilgilendirici); 409 kodsuz → genel çakışma mesajı (yalnız eski API); REVOKED dosyanın kalıcı kilidi (G4 (b) kullanıcı kararı); backfill trigger spekülasyonu.
+
+**Tur 3 düzeltme kaydı (2026-11-12):** P1–P5 uygulandı.
+- P1 `tx.creative.create` P2002'yi işlem içinde `UploadRace` sentinel'ine çevirir; işlem bittikten sonra `this.db` ile mevcut kayıt yeniden sorgulanır → `DUPLICATE_CREATIVE` (REVOKED ise REVOKED mesajı + `details.status`), `replacesId` varsa "newer version", aksi halde genel çakışma. Eşzamanlı yükleme entegrasyon testi eklendi (201 + 409 DUPLICATE_CREATIVE).
+- P2 `upload.ts`: gövde tamamen gittikten sonra `onerror`/`ontimeout`/kodsuz 5xx → `UPLOAD_UNCONFIRMED`. **Sapma:** 12 dk toplam `request.timeout` kaldırıldı; yalnız gövde gittikten sonra yanıt beklemesi 12 dk ile sınırlı (yavaş hatlarda büyük yükleme kesilmez).
+- P3 S3 `put`: `RequestTimeout`, `RequestTimeTooSkewed`, `OperationAborted`, `SlowDown` adları 4xx olsa da yeniden denenir; kalıcı 4xx (403 AccessDenied vb.) tek denemede biter. Birim test eklendi.
+- P4 testler: P8 yarışı, P12 S3 4xx, (revoke LIVE zaten mevcut testte kapsanıyor, yeniden eklenmedi). **Yapılmadı:** web eşleme birim testleri (web'de birim test altyapısı yok; E2E ile kısmen örtülü), P9/P7 için ayrı test. P5 `CAMPAIGNS.md` `details.reason` ifadesi CMS hatalarına daraltıldı.
+- Doğrulama (bu oturumda çalıştırıldı): typecheck, lint, build 8/8; 137 API birim; 90 entegrasyon; 43 E2E. Çalıştırılamayan: gerçek S3, Compose storage profili, ~200 MB yükleme, migration yükseltme testi.

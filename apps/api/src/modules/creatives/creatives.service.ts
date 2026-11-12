@@ -44,6 +44,9 @@ export function safeFilename(name: string | undefined): string {
 
 export interface UploadedFile { path: string; originalname: string; size: number }
 
+/** Internal: the partial unique index rejected a concurrent upload; resolved after the transaction. */
+class UploadRace extends Error {}
+
 @Injectable()
 export class CreativesService {
   constructor(private readonly db: PrismaService, private readonly audit: AuditService,
@@ -151,7 +154,11 @@ export class CreativesService {
             videoCodec: probe?.videoCodec ?? null, sizeBytes: BigInt(size), checksum,
             status: inspected.ok ? 'VALIDATING' : 'REJECTED', rejectionReason: inspected.ok ? null : inspected.reason,
             version, replacesId: dto.replacesId ?? null, uploadedById: actor.user.id,
-          }, select: creativeSelect });
+          }, select: creativeSelect }).catch((failure: unknown) => {
+            // inventoryTransaction folds P2002 into a generic 409, so the race is named here, inside the transaction.
+            if (inspected.ok && failure instanceof Prisma.PrismaClientKnownRequestError && failure.code === 'P2002') throw new UploadRace();
+            throw failure;
+          });
           const after = presentCreative(row);
           await this.audit.append(tx, { userId: actor.user.id, action: inspected.ok ? 'CREATIVE_UPLOADED' : 'CREATIVE_AUTO_REJECTED',
             entityType: 'creative', entityId: row.id, after });
@@ -161,12 +168,15 @@ export class CreativesService {
         if (storageKey) await storage.delete(storageKey).catch(() => {
           console.error(JSON.stringify({ level: 'error', msg: 'orphan creative object', storageKey }));
         });
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002' && inspected.ok) {
+        if (error instanceof UploadRace) {
           // A concurrent upload won the partial unique index: report it like the application-level check does.
           const existing = await this.db.creative.findFirst({ where: { advertiserId, checksum, status: { not: 'REJECTED' } },
             select: { id: true, code: true, status: true } });
-          if (existing) throw new ApiError(409, 'DUPLICATE_CREATIVE', 'This file already exists for the advertiser', { creativeId: existing.id, code: existing.code, status: existing.status });
+          if (existing) throw new ApiError(409, 'DUPLICATE_CREATIVE', existing.status === 'REVOKED'
+            ? 'This file matches a revoked creative of the advertiser and cannot be uploaded again'
+            : 'This file already exists for the advertiser', { creativeId: existing.id, code: existing.code, status: existing.status });
           if (dto.replacesId) throw conflict('This creative already has a newer version');
+          throw conflict('Inventory conflict; reload and retry');
         }
         throw error;
       }

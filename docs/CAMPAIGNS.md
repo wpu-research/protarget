@@ -66,7 +66,9 @@ uygulama rolü yetkisiyle engelli). Türler: `CMS_UPLOADED`,
 kampanyadan önceye yazılamaz (`performedAt` için 60 sn istemci saat toleransı);
 yalnız kampanyadaki ekran için yazılır. CMS işlemi yalnız READY/LIVE/PAUSED
 booking'de kaydedilir (`NOTE` ayrıca DRAFT'ta); COMPLETED/CANCELLED salt okunur.
-Hata yanıtları `details.reason` kodu taşır.
+CMS işlemi hataları (400/409) `details.reason` kodu taşır
+(`NOTE_REQUIRED`, `CMS_STATUS_NOT_ALLOWED`, `PERFORMED_IN_FUTURE`,
+`PERFORMED_BEFORE_BOOKING`, `SCREEN_NOT_IN_BOOKING`).
 Düzeltme yeni kayıtla yapılır. LIVE/PAUSED geçişinde son beyanı uyuşmayan
 ekranlar audit'e uyarı olarak yazılır.
 
