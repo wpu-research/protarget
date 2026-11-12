@@ -47,7 +47,23 @@ Test verisi üretimde kalıcıdır: `CMP-2026-0001`/`0002` (iptal), `CR-2026-000
 `SMOKE-TEST-01` ekranı (hepsi pasif), ekran için onaylı 1.0000 çarpan sürümü.
 Denetim kaydı silinmez. Eski `DEPLOY-…` kaydına dokunulmadı.
 
-**Yapılmayanlar (başarılı sayılmaz):** ~200 MB yükleme, MP4/video yükleme,
+### MP4 ve büyük dosya yükleme (12 Kasım 2026, akşam)
+
+Aynı test reklamverenine (yükleme için geçici aktif edildi, sonra tekrar pasif):
+
+- `CR-2026-00003`: 1280×720, 5 sn, h264 MP4 (1.742.923 bayt) yüklendi, sunucunun
+  ölçtüğü sha256/boyut/süre/codec yerel dosyayla aynıydı.
+- `CR-2026-00004`: 1920×1080, 40 sn, h264 MP4, **188.969.376 bayt (~189 MB)**.
+  Tarayıcıdan yükleme ~112 sn sürdü (ilerleme çubuğu çalıştı), sunucu ölçümü
+  yerelle aynı. `GET /creatives/:id/file` ile S3'ten geri okuma ~31 sn, bayt sayısı
+  ve sha256 yüklenenle aynı.
+- 215 MB'lık dosya "Dosya 200 MB sınırını aşıyor." ile reddedildi; ağ kaydında
+  istek gitmedi, yani **istemci tarafı** ret görüldü. Sunucu tarafı 200 MB sınırı
+  canlıda ayrıca sınanmadı.
+- İki kayıt da `REJECTED` yapıldı (gerekçeyle); onaylanmadı, bir kampanyaya bağlanmadı.
+  Test dosyaları yerelde silindi.
+
+**Yapılmayanlar (başarılı sayılmaz):** sunucu tarafı 200 MB sınırı (canlıda),
 tarayıcıda TR/EN/mobil kontrolü, yedekten restore, migration yükseltme
 tatbikatı ve gerçek ağ takılması testi. D8–D23 defer'ları açık.
 
