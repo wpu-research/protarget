@@ -2,8 +2,9 @@
 
 Story: `story/campaign-booking` (spec:
 `_bmad-output/implementation-artifacts/tech-spec-campaign-booking.md`).
-**Yerel değişikliktir; Railway'e yayımlanmadı.** Canlıda kreatif depolaması
-(bucket) yoktur; yayın öncesinde depolama kararı ve onay gerekir.
+**12 Kasım 2026'da Railway'e yayımlandı** (`c2ca020`; ayrıntı ve kısıtlar
+`RAILWAY_DEPLOYMENT.md`). Kreatif depolaması Railway bucket'ıdır (`STORAGE_DRIVER=s3`);
+admin girişli canlı smoke ve ~200 MB yükleme henüz yapılmadı.
 
 Bu modül operatörün kampanyayı panelde hazırlayıp mevcut CMS'ye **elle**
 yüklediği MVP modelini destekler. Panelde “Yayında / Durduruldu” kaydı ve CMS

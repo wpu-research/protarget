@@ -1,5 +1,38 @@
 # Railway pilot yayınları
 
+## 12 Kasım 2026 — kampanya/booking yayını
+
+**Durum: canlı; yayın sonrası kontroller kısmen yapıldı (aşağıya bakın).**
+Kullanıcı canlıya almayı ve yedek/yayın izinlerini açıkça verdi. Kaynak commit
+`c2ca020` (`story/campaign-booking`, `main` ile aynı); aynı `protarget`
+projesi/`production` ortamı. Git remote yok: temiz `git archive` klasöründen
+`railway up` ile yüklendi (`.railwayignore` geçerli; 7 production secret
+değeriyle tarama, eşleşme 0). Repo klasörünün Railway bağlantısı başka bir
+projeye işaret ettiği için yayın, yalnız `protarget` projesine bağlı ayrı bir
+geçici klasörden yapıldı; başka projeye dokunulmadı.
+
+| Adım | Sonuç |
+|---|---|
+| Yedek | 101.411 bayt PostgreSQL custom archive (30 tablo verisi); Postgres container'ında `pg_restore --list` ile doğrulandı; restore tatbikatı yapılmadı. Dosya gitignored `.local/backups/protarget-20261112-pre-campaign-c2ca020.dump` (0600) |
+| Depolama | Yeni Railway bucket `protarget-creatives` (AMS, S3 uyumlu). API'ye `STORAGE_DRIVER=s3` ve `S3_*` değişkenleri eklendi (sırlar günlüklere/belgeye yazılmadı). Geçici kimlikle put/get/delete turu başarılı |
+| Migration | `56961ff5-f791-40f1-8d3e-cd6b91a6ce36` — `schema`, `runtime-role`, `runtime-grants`, `administrator`, `status`, `all` tamam; `_prisma_migrations`: 8 uygulandı, 0 başarısız (son: `20261111000100_campaign_booking_review`) |
+| API | `41737c24-c9d1-4b3d-8a71-49ad995a57f7` — `SUCCESS`, `api listening port=4100`, günlüklerde hata 0 |
+| Web | `cae37cd7-b4b7-4b62-8536-7938c52b8a39` — `SUCCESS`; `/api/v1/health` 200 |
+
+Dış HTTPS kontrolleri (kimliksiz): kampanya/kreatif/ekran uçları 401, yanlış
+Origin ile `POST /api/v1/creatives` 403, `/login` 200, `/admin` 307 (girişe).
+
+**Yapılmayanlar (başarılı sayılmaz):** admin girişli canlı smoke (kampanya
+oluşturma, gerçek kreatif yükleme uygulama üzerinden, ~200 MB yükleme, tarayıcı
+TR/EN/mobil kontrolü) çalıştırılmadı; giriş bilgileri bu oturumda okunmadı.
+Yedekten restore, migration yükseltme tatbikatı ve gerçek ağ takılması testi
+yapılmadı. D8–D23 defer'ları açık.
+
+Geri dönüş: önceki API `99952375-2d85-4e7f-ab89-43d44922c425`, web
+`de68631c-99f2-47c8-8414-e5b9e01f6133` (Railway'de hedeflenerek;
+`railway deployment redeploy` varsayılan olarak en son sürümü seçer).
+Uygulama geri dönüşü migration'ları veya sonradan girilen veriyi geri almaz.
+
 ## 11 Kasım 2026 — manuel envanter yayını
 
 **Durum: canlı pilot yayını ve yayın sonrası kontroller başarılı.**
