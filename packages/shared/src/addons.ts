@@ -27,7 +27,7 @@ export const ADDON_MODULES: readonly AddonDefinition[] = [
   { key: 'playback', area: 1, kind: 'PLACEHOLDER', ready: false, prerequisites: ['player', 'cmsApi'] },
   { key: 'proofOfPlay', area: 2, kind: 'WORKING', ready: true, prerequisites: ['cmsExport'] },
   { key: 'capacity', area: 3, kind: 'WORKING', ready: true, prerequisites: ['loopSlot'] },
-  { key: 'sales', area: 4, kind: 'WORKING', ready: false, prerequisites: ['priceList'] },
+  { key: 'sales', area: 4, kind: 'WORKING', ready: true, prerequisites: ['priceList'] },
   { key: 'programmatic', area: 5, kind: 'PLACEHOLDER', ready: false, prerequisites: ['sspContract', 'technicalAccess'] },
   { key: 'audience', area: 6, kind: 'PLACEHOLDER', ready: false, prerequisites: ['audienceSource'] },
   { key: 'dynamicContent', area: 7, kind: 'PLACEHOLDER', ready: false, prerequisites: ['player', 'dataProvider'] },

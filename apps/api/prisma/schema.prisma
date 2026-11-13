@@ -226,6 +226,7 @@ model User {
   screenHolds         ScreenHold[]
   deliveryImports     DeliveryImportBatch[]
   voidedDeliveries    DeliveryRecord[]      @relation("DeliveryVoidedBy")
+  screenRates         ScreenRate[]
   auditLogs           AuditLog[]
   campaignPermissions CampaignPermission[]
 
@@ -384,6 +385,8 @@ model Screen {
   cmsOperations     CampaignCmsOperation[]
   holds             ScreenHold[]
   deliveryRecords   DeliveryRecord[]
+  rates             ScreenRate[]
+  salesPackages     SalesPackageScreen[]
 
   @@index([venueId])
   @@map("screens")
@@ -964,4 +967,49 @@ model DeliveryRecord {
   @@index([screenId, playedAt])
   @@index([dedupeKey])
   @@map("delivery_records")
+}
+
+/// Ek özellik "satış araçları": sürümlü liste fiyatı (bir slotun bir günlük fiyatı).
+/// Salt eklenir; yeni sürüm `validFrom` ile öncekinin yerini alır. Geriye tarihlenemez.
+model ScreenRate {
+  id          String   @id @default(uuid()) @db.Uuid
+  screenId    String   @db.Uuid
+  dailyRate   Decimal  @db.Decimal(18, 4)
+  currency    Currency
+  validFrom   DateTime @db.Timestamptz
+  note        String?
+  createdById String   @db.Uuid
+  createdAt   DateTime @default(now()) @db.Timestamptz
+
+  screen    Screen @relation(fields: [screenId], references: [id])
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@unique([screenId, validFrom])
+  @@map("screen_rates")
+}
+
+/// Ek özellik "satış araçları": adlandırılmış ekran grubu (hazır paket).
+model SalesPackage {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @db.Timestamptz
+  updatedAt   DateTime @updatedAt @db.Timestamptz
+
+  screens SalesPackageScreen[]
+
+  @@map("sales_packages")
+}
+
+model SalesPackageScreen {
+  packageId String @db.Uuid
+  screenId  String @db.Uuid
+
+  package SalesPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  screen  Screen       @relation(fields: [screenId], references: [id])
+
+  @@id([packageId, screenId])
+  @@index([screenId])
+  @@map("sales_package_screens")
 }

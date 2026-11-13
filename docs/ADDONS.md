@@ -25,7 +25,7 @@ eklendi. Kullanıcı kararı (13 Kasım 2026): bayrak arkasında kapalı; admin
 | 1 | Oynatma ve CMS | Yer tutucu | Açılamaz; player + CMS API gerekir |
 | 2 | Oynatma kaydı (PoP) içe aktarma | Çalışır, kapalı | Story 3 — uygulandı |
 | 3 | Kapasite ve müsaitlik | Çalışır, kapalı | Story 2 — uygulandı |
-| 4 | Satış araçları | Çalışır, kapalı (indirim onayı/fatura yer tutucu) | Story 5 |
+| 4 | Satış araçları | Çalışır, kapalı (indirim onayı/fatura yer tutucu) | Story 5 — uygulandı |
 | 5 | Programatik satış | Yer tutucu | Açılamaz; SSP/DSP anlaşması + teknik erişim gerekir |
 | 6 | Kitle ölçümü | Yer tutucu | Açılamaz; sensör veya veri sözleşmesi gerekir |
 | 7 | Dinamik içerik / DCO | Yer tutucu | Açılamaz; player + veri sağlayıcı gerekir |
@@ -103,3 +103,18 @@ istatistik veya bağlantı durumu göstermez.
 - Kaydı olmayan kaynak `null` ("—") gösterilir, 0 değil. Rapor bellekte hesaplanır;
   kampanya başına 200.000 satır sınırı vardır (DB tarafı toplama ertelendi).
 - Ekran görüntüsü/video kanıtı yok (MVP kararı: sonraya).
+
+## Satış araçları (story addon-sales)
+
+- Fiyat kartı: `screen_rates` — ekran başına bir slotun **bir günlük** liste fiyatı,
+  TRY/USD, sürümlü ve salt eklenir (DB tetikleyicisi). Yeni sürüm `validFrom`'dan
+  itibaren geçer; geriye tarihlenemez. `GET/POST /api/v1/sales/rates`.
+- Hazır paket: `sales_packages` + `sales_package_screens` — adlandırılmış ekran grubu;
+  booking oluşturmaz. `GET/POST /sales/packages`, `PATCH /sales/packages/:id`.
+- Teklif belgesi: `GET /sales/proposals/:campaignId` ve yazdırılabilir ekran (tarayıcı
+  "Yazdır / PDF"). Liste tutarı = kampanya başlangıcında geçerli günlük fiyat × uçuş
+  günü (kesirli, UTC anlarından). Fiyatı olmayan ekranın tutarı `null` ve toplam dışı;
+  eksik sayısı belgede yazılır. Toplam para birimi başına ayrıdır (çevrim yok).
+- İndirim, vergi, onay akışı ve fatura **yer tutucu**; teklif bağlayıcı değildir.
+- Kampanyanın mevcut ticari alanları (birim fiyat, bütçe) okunmaz/değiştirilmez.
+- Migration: `20261113000200_addon_sales` (gerçek Postgres'te çalıştırılmadı).

@@ -26,6 +26,7 @@ import { OpsModule } from './modules/ops/ops.module';
 import { AddonsModule } from './modules/addons/addons.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
+import { SalesModule } from './modules/sales/sales.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { DeliveryModule } from './modules/delivery/delivery.module';
     AddonsModule,
     CapacityModule,
     DeliveryModule,
+    SalesModule,
   ],
 })
 export class AppModule {}

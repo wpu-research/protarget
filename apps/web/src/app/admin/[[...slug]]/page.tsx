@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView, type DeliveryBatchView, type DeliveryRecordView, type CampaignDeliveryReport,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView, type DeliveryBatchView, type DeliveryRecordView, type CampaignDeliveryReport, type RateView, type SalesPackageView, type ProposalDocument,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -19,6 +19,7 @@ import { CapacityView } from '@/components/Capacity';
 import { DeliveryView } from '@/components/Delivery';
 import { DeliveryReportView } from '@/components/Report';
 import { ReportPicker } from '@/components/ReportPicker';
+import { ProposalView, SalesView } from '@/components/Sales';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -99,6 +100,22 @@ async function addonBody(addon: AddonState, search: Record<string, string | stri
       <ReportPicker campaigns={campaigns.items.filter(c => c.status !== 'DRAFT').map(c => ({ id: c.id, label: `${c.code} · ${c.name}` }))}
         selected={campaignId} action="/admin/addons/reporting" truncated={campaigns.truncated} />
       {report && <DeliveryReportView report={report} />}</>;
+  }
+  if (addon.key === 'sales' && addon.enabled) {
+    const campaignId = typeof search.campaignId === 'string' && uuidPattern.test(search.campaignId) ? search.campaignId : undefined;
+    const [rates, packages, screens, campaigns, proposal] = await Promise.all([
+      serverApi<PageResult<RateView>>('/sales/rates?pageSize=100'),
+      serverApi<PageResult<SalesPackageView>>('/sales/packages?pageSize=100'),
+      listAllCapped<InventoryScreen>('/screens?active=true'),
+      listAllCapped<CampaignPage['items'][number]>('/campaigns'),
+      campaignId ? serverApi<ProposalDocument>(`/sales/proposals/${campaignId}`, true) : undefined,
+    ]);
+    return <><AddonDetail addon={addon} compact />
+      <SalesView rates={rates} packages={packages} screens={screens.items.map(s => ({ id: s.id, label: `${s.screenId} · ${s.name}` }))} />
+      <h2 className="report-gap">{t('sales.proposalPick', await locale())}</h2>
+      <ReportPicker campaigns={campaigns.items.filter(c => c.status !== 'CANCELLED').map(c => ({ id: c.id, label: `${c.code} · ${c.name}` }))}
+        selected={campaignId} action="/admin/addons/sales" truncated={campaigns.truncated} />
+      {proposal && <div className="report-gap"><ProposalView proposal={proposal} /></div>}</>;
   }
   return <AddonDetail key={addon.key} addon={addon} />;
 }
