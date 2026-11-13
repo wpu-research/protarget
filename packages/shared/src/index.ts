@@ -11,3 +11,4 @@ export * from './capacity';
 export * from './delivery';
 export * from './reporting';
 export * from './sales';
+export * from './catalog';

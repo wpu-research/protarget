@@ -892,5 +892,16 @@
   "sales.total": "Total list amount",
   "sales.missingRates": "{count} screens have no price valid at the campaign start; the total excludes them.",
   "sales.proposalNote": "List amount = daily list price × flight days (fractional). Prices are the versions valid at {date}. No discount, tax or invoice; not a binding offer.",
-  "sales.truncated": "Showing the first {shown} records (of {total})."
+  "sales.truncated": "Showing the first {shown} records (of {total}).",
+  "nav.catalog": "Inventory catalog",
+  "catalog.title": "Inventory catalog",
+  "catalog.description": "Screens on active ships with their technical details. Read-only; bookings are made by the Protarget team.",
+  "catalog.filter": "Filter",
+  "catalog.specs": "Resolution / orientation",
+  "catalog.loop": "Loop / slot",
+  "catalog.hours": "Operating hours",
+  "catalog.pricesVisible": "List prices are for information; no discount or tax, not binding.",
+  "catalog.pricesHidden": "Prices are not opened for your organisation; contact the Protarget team for a proposal.",
+  "catalog.requestTitle": "Booking request",
+  "catalog.requestNote": "Placeholder: booking requests from the portal are not in this version. Agency and brand accounts are read-only; send your request to the Protarget team."
 }

@@ -29,7 +29,7 @@ eklendi. Kullanıcı kararı (13 Kasım 2026): bayrak arkasında kapalı; admin
 | 5 | Programatik satış | Yer tutucu | Açılamaz; SSP/DSP anlaşması + teknik erişim gerekir |
 | 6 | Kitle ölçümü | Yer tutucu | Açılamaz; sensör veya veri sözleşmesi gerekir |
 | 7 | Dinamik içerik / DCO | Yer tutucu | Açılamaz; player + veri sağlayıcı gerekir |
-| 8 | Alıcı kataloğu | Çalışır, kapalı (rezervasyon talebi yer tutucu) | Story 6 |
+| 8 | Alıcı kataloğu | Çalışır, kapalı (rezervasyon talebi yer tutucu) | Story 6 — uygulandı |
 | 9 | Teslimat raporları | Çalışır, kapalı | Story 4 — uygulandı |
 
 Yer tutucu sayfalar yalnız açıklama ve önkoşul listesi gösterir; sahte veri,
@@ -118,3 +118,16 @@ istatistik veya bağlantı durumu göstermez.
 - İndirim, vergi, onay akışı ve fatura **yer tutucu**; teklif bağlayıcı değildir.
 - Kampanyanın mevcut ticari alanları (birim fiyat, bütçe) okunmaz/değiştirilmez.
 - Migration: `20261113000200_addon_sales` (gerçek Postgres'te çalıştırılmadı).
+
+## Alıcı kataloğu (story addon-buyer-catalog)
+
+- Portal (ajans/reklamveren): `GET /api/v1/portal/catalog/screens?venueId=&page=`;
+  ekran `/portal/catalog` (menüde "Planlandı" etiketiyle; bayrak kapalıyken yer tutucu).
+- Yalnız aktif gemideki aktif ekranlar ve alıcıya uygun alanlar: kod, ad, gemi/şehir,
+  çözünürlük, yön, boyut, loop/slot, yayın saatleri, saat dilimi. Sahip, not, CMS,
+  çarpan, taban fiyat, gelir payı **seçilmez**.
+- Liste fiyatı yalnız kurumun `spendVisible` bayrağı açıksa **ve** satış modülü
+  etkinse gösterilir (kampanya başlangıcı değil, bugün geçerli sürüm); aksi halde alan
+  hiç dolmaz. Bayrak veritabanından, aynı transaction'da okunur.
+- Rezervasyon talebi **yer tutucu**: ajans/marka hesapları salt okunur kalır (kullanıcı
+  kararı 13 Kasım 2026).

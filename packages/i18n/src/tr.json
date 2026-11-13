@@ -892,5 +892,16 @@
   "sales.total": "Toplam liste tutarı",
   "sales.missingRates": "{count} ekranın kampanya başlangıcında geçerli fiyatı yok; toplam bu ekranları içermez.",
   "sales.proposalNote": "Liste tutarı = günlük liste fiyatı × uçuş günü (kesirli). Fiyatlar {date} tarihinde geçerli sürümdendir. İndirim, vergi ve fatura içermez; bağlayıcı teklif değildir.",
-  "sales.truncated": "İlk {shown} kayıt gösteriliyor (toplam {total})."
+  "sales.truncated": "İlk {shown} kayıt gösteriliyor (toplam {total}).",
+  "nav.catalog": "Envanter kataloğu",
+  "catalog.title": "Envanter kataloğu",
+  "catalog.description": "Aktif gemilerdeki ekranlar, teknik özellikleriyle. Salt okunur; rezervasyonu Protarget ekibi yapar.",
+  "catalog.filter": "Filtrele",
+  "catalog.specs": "Çözünürlük / yön",
+  "catalog.loop": "Loop / slot",
+  "catalog.hours": "Yayın saatleri",
+  "catalog.pricesVisible": "Liste fiyatları bilgi amaçlıdır; indirim ve vergi içermez, bağlayıcı değildir.",
+  "catalog.pricesHidden": "Fiyatlar kurumunuz için açılmadı; teklif için Protarget ekibiyle iletişime geçin.",
+  "catalog.requestTitle": "Rezervasyon talebi",
+  "catalog.requestNote": "Yer tutucu: portaldan rezervasyon talebi bu sürümde yok. Ajans ve marka hesapları salt okunurdur; talebinizi Protarget ekibine iletin."
 }
