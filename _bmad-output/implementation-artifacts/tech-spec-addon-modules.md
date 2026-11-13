@@ -129,3 +129,17 @@ Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap. Build, typecheck
 ## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-reporting) → ✅ Onaylandı
 
 Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap (3 numara kısmen, bilinçli erteleme). Build, typecheck, lint, 172 unit test geçti.
+
+## Code Review Findings — Tur 1 (13 Kasım 2026, story addon-sales) → Düzeltildi
+
+0 high, 2 medium, 4 low (ayrı alt ajan; migration, tetikleyici, bayrak, audit, i18n temiz).
+1. medium — tutar 4 ondalığa yuvarlanmış gün sayısıyla çarpılıyordu → tam milisaniyeden hesaplanır, yalnız gösterilen gün yuvarlanır.
+2. medium — arayüz para değerini `Number()` ile float'a çeviriyordu → `formatDecimal` (BigInt tam kısım + metin kesir).
+3. low — DTO sıfır fiyatı kabul ediyordu (DB CHECK 409 veriyordu) → 400.
+4. low — saniyeli `datetime-local` 400 veriyor, şimdiki dakika "geçmiş" sayılıyordu → `step=60`, `new Date(…Z)`, 60 sn tolerans.
+5. low — 100 kaydın ötesi sessizce gizleniyordu → "ilk N / toplam" uyarısı.
+6. low — pakette silinmiş ekran listeleniyor, pasif ekran kabul ediliyordu → silinmiş filtrelenir, yalnız aktif ekran.
+
+## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-sales) → ✅ Onaylandı
+
+Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap. Build, typecheck, lint, 176 unit test geçti.

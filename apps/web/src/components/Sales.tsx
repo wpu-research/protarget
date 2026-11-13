@@ -21,9 +21,17 @@ function useSubmit() {
   return { busy, error, run };
 }
 
+/** Formats a decimal string without converting it to a float: integer part via BigInt, fraction kept as text. */
+export function formatDecimal(value: string, locale: string): string {
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value);
+  if (!match) return value;
+  const separator = new Intl.NumberFormat(locale).formatToParts(1.5).find(part => part.type === 'decimal')?.value ?? '.';
+  const fraction = (match[3] ?? '').replace(/0+$/, '').padEnd(2, '0');
+  return `${match[1]}${new Intl.NumberFormat(locale).format(BigInt(match[2]))}${separator}${fraction}`;
+}
 function useMoney() {
   const locale = useLocale();
-  return (value: string, currency: string) => `${new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(Number(value))} ${currency}`;
+  return (value: string, currency: string) => `${formatDecimal(value, locale)} ${currency}`;
 }
 
 export function SalesView({ rates, packages, screens }: { rates: PageResult<RateView>; packages: PageResult<SalesPackageView>; screens: Option[] }) {
@@ -45,7 +53,7 @@ function Rates({ rates, screens }: { rates: PageResult<RateView>; screens: Optio
     const from = String(data.get('validFrom') ?? '');
     void run(() => api('/sales/rates', { method: 'POST', body: {
       screenId: data.get('screenId'), dailyRate: String(data.get('dailyRate') ?? '').trim(), currency: data.get('currency'),
-      ...(from ? { validFrom: `${from}:00.000Z` } : {}), note: String(data.get('note') ?? '') || null } }), () => setKey(k => k + 1));
+      ...(from ? { validFrom: new Date(`${from}Z`).toISOString() } : {}), note: String(data.get('note') ?? '') || null } }), () => setKey(k => k + 1));
   };
   return <section className="card" aria-labelledby="sales-rates">
     <h2 id="sales-rates">{text('sales.rates')}</h2>
@@ -56,7 +64,7 @@ function Rates({ rates, screens }: { rates: PageResult<RateView>; screens: Optio
         {screens.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
       <label>{text('sales.dailyRate')}<input name="dailyRate" inputMode="decimal" pattern="(0|[1-9][0-9]{0,13})(\.[0-9]{1,4})?" required /></label>
       <label>{text('sales.currency')}<select name="currency" defaultValue="TRY">{SALES_CURRENCIES.map(c => <option key={c}>{c}</option>)}</select></label>
-      <label>{text('sales.validFrom')}<input name="validFrom" type="datetime-local" /></label>
+      <label>{text('sales.validFrom')}<input name="validFrom" type="datetime-local" step={60} /></label>
       <label className="full">{text('delivery.note')}<input name="note" maxLength={500} /></label>
       <div className="full"><button className="button primary" disabled={busy}>{text('sales.addRate')}</button></div>
     </form>
@@ -70,6 +78,7 @@ function Rates({ rates, screens }: { rates: PageResult<RateView>; screens: Optio
           <td>{rate.validFrom.slice(0, 16).replace('T', ' ')} UTC<small>{rate.validTo ? `→ ${rate.validTo.slice(0, 16).replace('T', ' ')} UTC` : text('sales.current')}</small></td>
           <td>{rate.note ?? '—'}<small>{rate.createdBy.name}</small></td>
         </tr>)}</tbody></table></div>}
+    {rates.total > rates.items.length && <p className="hint">{text('sales.truncated', { shown: rates.items.length, total: rates.total })}</p>}
   </section>;
 }
 
@@ -105,6 +114,7 @@ function Packages({ packages, screens }: { packages: PageResult<SalesPackageView
             onClick={() => run(() => api(`/sales/packages/${item.id}`, { method: 'PATCH', body: { active: !item.active } }))}>
             {text(item.active ? 'sales.deactivate' : 'sales.activate')}</button></td>
         </tr>)}</tbody></table></div>}
+    {packages.total > packages.items.length && <p className="hint">{text('sales.truncated', { shown: packages.items.length, total: packages.total })}</p>}
   </section>;
 }
 

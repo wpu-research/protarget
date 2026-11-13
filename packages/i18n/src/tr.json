@@ -891,5 +891,6 @@
   "sales.noPrice": "Fiyat yok",
   "sales.total": "Toplam liste tutarı",
   "sales.missingRates": "{count} ekranın kampanya başlangıcında geçerli fiyatı yok; toplam bu ekranları içermez.",
-  "sales.proposalNote": "Liste tutarı = günlük liste fiyatı × uçuş günü (kesirli). Fiyatlar {date} tarihinde geçerli sürümdendir. İndirim, vergi ve fatura içermez; bağlayıcı teklif değildir."
+  "sales.proposalNote": "Liste tutarı = günlük liste fiyatı × uçuş günü (kesirli). Fiyatlar {date} tarihinde geçerli sürümdendir. İndirim, vergi ve fatura içermez; bağlayıcı teklif değildir.",
+  "sales.truncated": "İlk {shown} kayıt gösteriliyor (toplam {total})."
 }

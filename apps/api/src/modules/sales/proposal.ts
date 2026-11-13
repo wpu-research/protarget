@@ -23,13 +23,15 @@ export function flightDays(startAt: Date, endAt: Date): Prisma.Decimal {
 /** List amount per screen = daily list rate × flight days; no rate → null (never 0). Totals per currency. */
 export function buildProposal(screens: ProposalScreen[], rates: RateRow[], startAt: Date, endAt: Date) {
   const days = flightDays(startAt, endAt);
+  // Amount from exact milliseconds; only the displayed day count is rounded.
+  const ms = endAt.getTime() - startAt.getTime();
   const totals = new Map<SalesCurrency, Prisma.Decimal>();
   let missingRates = 0;
   const lines: ProposalLine[] = screens.map(screen => {
     const rate = rateAt(rates, screen.id, startAt);
     if (!rate) { missingRates++; return { screenId: screen.id, screenCode: screen.code, screenName: screen.name, venueName: screen.venue,
       dailyRate: null, currency: null, listAmount: null }; }
-    const amount = rate.dailyRate.mul(days).toDecimalPlaces(2);
+    const amount = rate.dailyRate.mul(ms).div(DAY).toDecimalPlaces(2);
     totals.set(rate.currency, (totals.get(rate.currency) ?? new Prisma.Decimal(0)).add(amount));
     return { screenId: screen.id, screenCode: screen.code, screenName: screen.name, venueName: screen.venue,
       dailyRate: rate.dailyRate.toFixed(), currency: rate.currency, listAmount: amount.toFixed(2) };

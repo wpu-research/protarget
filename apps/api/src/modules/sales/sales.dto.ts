@@ -4,7 +4,8 @@ import { SALES_CURRENCIES, type SalesCurrency } from '@protarget/shared';
 import { LowerUuid, Nullable, Optional, TrimText } from '../../common/inventory-validation';
 import { PaginationDto } from '../../common/pagination.dto';
 
-const money = /^(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/;
+/** Positive decimal, up to 14 integer and 4 fraction digits; zero is rejected (DB CHECK dailyRate > 0). */
+const money = /^(?!0+(?:\.0+)?$)(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/;
 const utc = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?Z$/;
 
 export class RateQueryDto extends PaginationDto {

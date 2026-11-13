@@ -28,4 +28,9 @@ describe('Sales add-on', () => {
     expect(proposal.totals).toEqual([{ currency: 'TRY', listAmount: '1505.00' }, { currency: 'USD', listAmount: '200.00' }]);
     expect(proposal.missingRates).toBe(1);
   });
+  it('computes amounts from exact milliseconds, not from the rounded day count', () => {
+    const proposal = buildProposal([screens[0]], [rate('s1', '10000', '2026-11-01T00:00:00Z')], d('2026-11-20T00:00:00Z'), d('2026-11-30T08:00:00Z'));
+    expect(proposal.days).toBe('10.3333');
+    expect(proposal.lines[0].listAmount).toBe('103333.33');
+  });
 });

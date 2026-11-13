@@ -18,7 +18,8 @@ const rateSelect = {
 type RateRow = Prisma.ScreenRateGetPayload<{ select: typeof rateSelect }>;
 const packageSelect = {
   id: true, name: true, description: true, active: true, createdAt: true, updatedAt: true,
-  screens: { select: { screen: { select: { id: true, screenId: true, name: true } } }, orderBy: { screen: { screenId: 'asc' } } },
+  screens: { where: { screen: { deletedAt: null } }, select: { screen: { select: { id: true, screenId: true, name: true } } },
+    orderBy: { screen: { screenId: 'asc' } } },
 } satisfies Prisma.SalesPackageSelect;
 type PackageRow = Prisma.SalesPackageGetPayload<{ select: typeof packageSelect }>;
 
@@ -65,7 +66,8 @@ export class SalesService {
   createRate(actor: Principal, dto: CreateRateDto, now = new Date()): Promise<RateView> {
     const validFrom = dto.validFrom ? new Date(dto.validFrom) : now;
     // Like multipliers: a price list is never backdated, so a sent proposal cannot change afterwards.
-    if (validFrom.getTime() < now.getTime() - 1000) throw invalid('validFrom cannot be in the past');
+    // One minute of tolerance: the form picks whole minutes.
+    if (validFrom.getTime() < now.getTime() - 60_000) throw invalid('validFrom cannot be in the past');
     return inventoryTransaction(this.db, async tx => {
       await this.guard(tx, actor);
       const screen = await tx.screen.findFirst({ where: { id: dto.screenId, deletedAt: null }, select: { id: true } });
@@ -153,7 +155,7 @@ export class SalesService {
   }
 
   private async requireScreens(tx: Prisma.TransactionClient, ids: string[]) {
-    const found = await tx.screen.count({ where: { id: { in: ids }, deletedAt: null } });
-    if (found !== ids.length) throw invalid('Every package screen must exist');
+    const found = await tx.screen.count({ where: { id: { in: ids }, deletedAt: null, active: true } });
+    if (found !== ids.length) throw invalid('Every package screen must exist and be active');
   }
 }
