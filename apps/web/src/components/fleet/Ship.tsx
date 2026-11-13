@@ -1,10 +1,11 @@
 'use client';
-import { forwardRef, useEffect, useMemo } from 'react';
+import { forwardRef, useEffect, useMemo, useState } from 'react';
 import { Label2D } from './Labels';
 import type { ThreeEvent } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { FleetScreen, FleetShip } from '@protarget/shared';
+import type { ScreenAd } from '../Inventory';
 import { SALOON, placeScreens, resolutionLabel, screenPanel, seatPositions, type Quality } from '@/lib/fleet-sim';
 
 const { floorY: Y0, halfWidth: HW, height: H, pitch: PITCH, perWall: PER } = SALOON;
@@ -133,13 +134,25 @@ function screenTexture(screen: FleetScreen, aspect: number): THREE.CanvasTexture
   return texture;
 }
 
-function ScreenMesh({ screen, slot, selected, onSelect }: {
-  screen: FleetScreen; slot: ReturnType<typeof placeScreens<FleetScreen>>['placed'][number]['slot'];
+function ScreenMesh({ screen, slot, selected, onSelect, ads }: {
+  ads: ScreenAd[]; screen: FleetScreen; slot: ReturnType<typeof placeScreens<FleetScreen>>['placed'][number]['slot'];
   selected: boolean; onSelect: (id: string) => void;
 }) {
   const panel = useMemo(() => screenPanel(screen.resolutionWidth, screen.resolutionHeight, screen.orientation), [screen]);
   const texture = useMemo(() => screenTexture(screen, panel.aspect), [screen, panel.aspect]);
   useEffect(() => () => texture.dispose(), [texture]);
+  // Booked ad (read-only): show the first image creative on the screen; videos keep the idle slate.
+  const adId = ads.find(ad => ad.creative?.kind === 'IMAGE')?.creative?.id;
+  const [adTexture, setAdTexture] = useState<THREE.Texture | null>(null);
+  useEffect(() => {
+    if (!adId) { setAdTexture(null); return; }
+    let cancelled = false; let loaded: THREE.Texture | null = null;
+    new THREE.TextureLoader().load(`/api/v1/creatives/${adId}/file`, tex => {
+      if (cancelled) { tex.dispose(); return; }
+      tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4; loaded = tex; setAdTexture(tex);
+    }, undefined, () => { if (!cancelled) setAdTexture(null); });
+    return () => { cancelled = true; loaded?.dispose(); setAdTexture(null); };
+  }, [adId]);
   const handle = (event: ThreeEvent<MouseEvent>) => {
     if (event.delta > 6) return;           // a drag to look around, not a click
     event.stopPropagation(); onSelect(screen.id);
@@ -150,18 +163,18 @@ function ScreenMesh({ screen, slot, selected, onSelect }: {
     <mesh position={[0, 0, 0.03]}><boxGeometry args={[panel.width + 0.1, panel.height + 0.1, 0.06]} />
       <meshStandardMaterial color={selected ? '#d4eea7' : '#0b0f10'} emissive={selected ? '#d4eea7' : '#000000'} emissiveIntensity={selected ? 0.9 : 0} /></mesh>
     <mesh position={[0, 0, 0.065]}><planeGeometry args={[panel.width, panel.height]} />
-      <meshBasicMaterial map={texture} toneMapped={false} /></mesh>
+      <meshBasicMaterial map={adTexture ?? texture} toneMapped={false} /></mesh>
   </group>;
 }
 
 export interface ShipProps {
-  ship: FleetShip; quality: Quality; interior: boolean; selectedScreenId: string | null;
+  ship: FleetShip; quality: Quality; interior: boolean; selectedScreenId: string | null; ads: Record<string, ScreenAd[]>;
   highlighted: boolean; showLabel: boolean;
   onEnter: (id: string) => void; onSelectScreen: (id: string) => void;
   label: string;
 }
 export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(props, ref) {
-  const { ship, interior, selectedScreenId, highlighted, showLabel, onEnter, onSelectScreen, label } = props;
+  const { ship, interior, selectedScreenId, ads, highlighted, showLabel, onEnter, onSelectScreen, label } = props;
   const exterior = useExterior();
   const inside = useInterior();
   const placed = useMemo(() => placeScreens(ship.screens).placed, [ship.screens]);
@@ -202,7 +215,7 @@ export const Ship = forwardRef<THREE.Group, ShipProps>(function Ship(props, ref)
       <pointLight position={[0, Y0 + H - 0.4, -8]} intensity={12} distance={20} color="#ffe6bd" />
       <pointLight position={[0, Y0 + H - 0.4, 8]} intensity={12} distance={20} color="#ffe6bd" />
     </>}
-    {placed.map(({ screen, slot }) => <ScreenMesh key={screen.id} screen={screen} slot={slot} selected={screen.id === selectedScreenId} onSelect={onSelectScreen} />)}
+    {placed.map(({ screen, slot }) => <ScreenMesh key={screen.id} screen={screen} slot={slot} selected={screen.id === selectedScreenId} onSelect={onSelectScreen} ads={ads[screen.screenId] ?? []} />)}
     {showLabel && <Label2D position={[0, 20, 0]} text={label} className={`fleet-ship-label${dim ? ' inactive' : ''}${highlighted ? ' active' : ''}`} />}
   </group>;
 });

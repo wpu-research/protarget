@@ -666,6 +666,8 @@
   "fleet.orientation.PORTRAIT": "Portrait",
   "fleet.campaigns": "Campaign declarations",
   "fleet.noDeclarations": "No campaign declaration is recorded on this screen.",
+  "fleet.bookedAds": "Ads booked on this screen",
+  "fleet.noBookedAds": "No campaign is booked on this screen.",
   "fleet.creatives": "Creatives",
   "fleet.noCreatives": "No creative attached",
   "fleet.lastCms": "Last CMS operation",

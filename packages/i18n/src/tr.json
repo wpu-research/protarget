@@ -666,6 +666,8 @@
   "fleet.orientation.PORTRAIT": "Dikey",
   "fleet.campaigns": "Kampanya beyanları",
   "fleet.noDeclarations": "Bu ekranda kayıtlı kampanya beyanı yok.",
+  "fleet.bookedAds": "Bu ekrana rezerve edilen reklamlar",
+  "fleet.noBookedAds": "Bu ekrana rezerve edilmiş kampanya yok.",
   "fleet.creatives": "Kreatifler",
   "fleet.noCreatives": "Kreatif bağlı değil",
   "fleet.lastCms": "Son CMS işlemi",

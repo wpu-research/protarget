@@ -62,7 +62,7 @@ export default async function AdminPage({ params, searchParams }: {
     const scene = await serverApi<FleetScene>(`/fleet/scene${includeInactive ? '?includeInactive=true' : ''}`);
     return <><p className="eyebrow">{t('nav.inventory', language)}</p><h1>{t('nav.fleet', language)}</h1>
       <p className="page-description">{t('fleet.description', language)}</p>
-      <FleetView scene={scene} includeInactive={includeInactive} /></>;
+      <FleetView scene={scene} includeInactive={includeInactive} ads={await screenAds()} /></>;
   }
   if (slug[0] === 'inventory') {
     const kind = slug[1];

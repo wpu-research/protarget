@@ -7,11 +7,13 @@ import type { FleetShip } from '@protarget/shared';
 import { SALOON, adalarPose, screenSlot, shipPose, viewpointFor, walk, type Quality, type Region } from '@/lib/fleet-sim';
 import { AdalarBuildings, AdalarPlaces, Atmosphere, Bridges, Buildings, Land, Sea } from './World';
 import { Ship } from './Ship';
+import type { ScreenAd } from '../Inventory';
 import { LabelRenderer } from './Labels';
 
 export type FleetMode = 'overview' | 'entering' | 'interior' | 'leaving';
 export interface MoveInput { forward: boolean; back: boolean; left: boolean; right: boolean }
 export interface SceneProps {
+  ads: Record<string, ScreenAd[]>;
   ships: FleetShip[]; quality: Quality; region: Region; mode: FleetMode; shipId: string | null;
   highlightedShipId: string | null; selectedScreenId: string | null;
   goto: { screenId: string; nonce: number } | null;
@@ -181,7 +183,7 @@ function Rig(props: SceneProps & { groups: MutableRefObject<Map<string, THREE.Gr
 }
 
 function Fleet(props: SceneProps) {
-  const { ships, mode, shipId, highlightedShipId, quality, selectedScreenId, onEnter, onSelectScreen, labelFor } = props;
+  const { ships, mode, shipId, highlightedShipId, quality, selectedScreenId, onEnter, onSelectScreen, labelFor, ads } = props;
   const groups = useRef(new Map<string, THREE.Group>());
   const lag = useRef(new Map<string, number>());
   const side = useRef(1);
@@ -201,7 +203,7 @@ function Fleet(props: SceneProps) {
   }, -10);
   return <>
     <Rig {...props} groups={groups} side={side} />
-    {ships.map(ship => <Ship key={ship.id} ship={ship} quality={quality}
+    {ships.map(ship => <Ship key={ship.id} ship={ship} ads={ads} quality={quality}
       ref={node => { if (node) groups.current.set(ship.id, node); else groups.current.delete(ship.id); }}
       interior={mode === 'interior' && ship.id === shipId} selectedScreenId={selectedScreenId}
       highlighted={ship.id === highlightedShipId && mode === 'overview'} showLabel={mode === 'overview' || mode === 'leaving'}

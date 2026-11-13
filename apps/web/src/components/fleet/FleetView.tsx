@@ -6,6 +6,7 @@ import type { FleetScene, FleetScreen, FleetShip } from '@protarget/shared';
 import { SALOON, detectQuality, resolutionLabel, resolveQuality, type Quality, type QualityChoice, type Region } from '@/lib/fleet-sim';
 import { useLocale, useText } from '../Locale';
 import type { FleetMode, MoveInput } from './Scene';
+import type { ScreenAd } from '../Inventory';
 
 function SceneLoading() { const text = useText(); return <p className="fleet-loading" role="status">{text('fleet.loading3d')}</p>; }
 const FleetCanvas = dynamic(() => import('./Scene'), { ssr: false, loading: () => <SceneLoading /> });
@@ -24,7 +25,7 @@ function probeWebgl(): boolean {
   } catch { return false; }
 }
 
-function ScreenDetail({ screen, onClose }: { screen: FleetScreen; onClose: () => void }) {
+function ScreenDetail({ screen, ads, onClose }: { screen: FleetScreen; ads: ScreenAd[]; onClose: () => void }) {
   const text = useText();
   const locale = useLocale();
   const unknown = text('fleet.unknown');
@@ -44,6 +45,13 @@ function ScreenDetail({ screen, onClose }: { screen: FleetScreen; onClose: () =>
       <dt>{text('fleet.field.hours')}</dt><dd>{screen.operatingStart && screen.operatingEnd ? `${screen.operatingStart}–${screen.operatingEnd} (${screen.timezone})` : unknown}</dd>
       <dt>{text('fleet.field.location')}</dt><dd>{screen.locationLabel ?? unknown}</dd>
     </dl>
+    <h3>{text('fleet.bookedAds')}</h3>
+    {ads.length === 0 ? <p className="hint">{text('fleet.noBookedAds')}</p> : <ul className="fleet-ads">
+      {ads.map(ad => <li key={ad.campaignId}>
+        {ad.creative?.kind === 'IMAGE' && <img src={`/api/v1/creatives/${ad.creative.id}/file`} alt={`${ad.campaignCode} ${ad.creative.code}`} loading="lazy" />}
+        <Link href={`/admin/campaigns/${ad.campaignId}`}><strong>{ad.campaignCode}</strong> · {ad.campaignName}</Link>{' '}
+        <span className="badge">{ad.status}</span>{ad.creative && <small>{ad.creative.code}</small>}</li>)}
+    </ul>}
     <h3>{text('fleet.campaigns')}</h3>
     {screen.declarations.length === 0 ? <p className="hint">{text('fleet.noDeclarations')}</p> : <ul className="fleet-declarations">
       {screen.declarations.map(d => <li key={d.campaignId}>
@@ -59,7 +67,7 @@ function ScreenDetail({ screen, onClose }: { screen: FleetScreen; onClose: () =>
   </section>;
 }
 
-export function FleetView({ scene, includeInactive }: { scene: FleetScene; includeInactive: boolean }) {
+export function FleetView({ scene, includeInactive, ads = {} }: { scene: FleetScene; includeInactive: boolean; ads?: Record<string, ScreenAd[]> }) {
   const text = useText();
   const locale = useLocale();
   const [mode, setMode] = useState<FleetMode>('overview');
@@ -117,7 +125,7 @@ export function FleetView({ scene, includeInactive }: { scene: FleetScene; inclu
   return <div className="fleet" data-mode={mode} data-quality={quality ?? 'pending'} data-testid="fleet-root">
     <div className="fleet-stage" ref={stage} role="group" aria-label={text('fleet.canvasLabel')}>
       {webgl && quality && <SceneBoundary fallback={() => setWebgl(false)}>
-        <FleetCanvas ships={scene.ships} quality={quality} region={region} mode={mode} shipId={shipId} highlightedShipId={hovered}
+        <FleetCanvas ads={ads} ships={scene.ships} quality={quality} region={region} mode={mode} shipId={shipId} highlightedShipId={hovered}
           selectedScreenId={selectedScreenId} goto={goto} input={input} reducedMotion={reducedMotion}
           onEnter={enter} onFlightDone={flightDone} onSelectScreen={selectScreen} onContextLost={() => setWebgl(false)} labelFor={labelFor} />
       </SceneBoundary>}
@@ -183,7 +191,7 @@ export function FleetView({ scene, includeInactive }: { scene: FleetScene; inclu
           </li>)}
         </ul>}
       </section>
-      {screen ? <ScreenDetail key={screen.id} screen={screen} onClose={() => setSelectedScreenId(null)} />
+      {screen ? <ScreenDetail key={screen.id} screen={screen} ads={ads[screen.screenId] ?? []} onClose={() => setSelectedScreenId(null)} />
         : <section className="card fleet-detail"><h2>{text('fleet.screenDetail')}</h2><p className="hint">{text('fleet.selectScreenHint')}</p></section>}
     </div>
   </div>;
