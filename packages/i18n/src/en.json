@@ -860,5 +860,6 @@
   "report.pickHint": "Choose a campaign for the report.",
   "report.portalTitle": "Campaign reports",
   "report.portalDescription": "Only your organisation's campaigns, read-only. Each figure shows its source and verification level.",
-  "report.portalEmpty": "No campaign to show."
+  "report.portalEmpty": "No campaign to show.",
+  "report.truncated": "The list is limited to the first 1,000 campaigns; for older ones use the campaign id from the campaign page."
 }

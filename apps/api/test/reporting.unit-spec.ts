@@ -62,4 +62,22 @@ describe('Delivery reporting add-on', () => {
     expect(where.OR).toEqual([{ advertiserId: 'o1' }, { agencyId: 'o1' },
       { permissions: { some: { OR: [{ orgId: 'o1' }, { userId: 'u1' }] } } }]);
   });
+  it('shows a source without records, or with a record missing its figure, as unknown (null) rather than 0', () => {
+    const report = buildDeliveryReport({ ...base, goal: { primaryGoal: 'PLAYOUTS', targetPlayouts: 100n, targetImpressions: null },
+      records: [
+        { source: 'CMS_VERIFIED', screenId: 's1', playedAt: d('2026-11-10T10:00:00Z'), count: 2, impressions: null },
+        { source: 'DECLARED_IMPRESSION', screenId: 's2', playedAt: d('2026-11-10T11:00:00Z'), count: null, impressions: null },
+      ] });
+    const unknown = { playouts: null, declaredImpressions: null, estimatedImpressions: null, uncoveredPlayouts: null, deliveryPct: null, pacing: null };
+    expect(report.sources[1]).toMatchObject(unknown);
+    expect(report.sources[2]).toMatchObject(unknown);
+    expect(report.byScreen[0].figures.OPERATOR_DECLARED.playouts).toBeNull();
+  });
+  it('computes pacing from unrounded values early in a flight', () => {
+    const report = buildDeliveryReport({ ...base, now: d('2026-11-01T00:10:00Z'),
+      goal: { primaryGoal: 'PLAYOUTS', targetPlayouts: 2880n, targetImpressions: null },
+      records: [{ source: 'CMS_VERIFIED', screenId: 's1', playedAt: d('2026-11-01T00:05:00Z'), count: 1, impressions: null }] });
+    expect(report.elapsedPct).toBe(0);
+    expect(report.sources[0].pacing).toBe(1);
+  });
 });

@@ -114,3 +114,18 @@ Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap (7 numara bilinç
 ## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-delivery-import) → ✅ Onaylandı
 
 Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap. Build, typecheck, lint, 164 unit test geçti. Migration/tetikleyiciler gerçek Postgres'te çalıştırılmadı (erişim yok).
+
+## Code Review Findings — Tur 1 (13 Kasım 2026, story addon-reporting) → Düzeltildi
+
+0 high, 3 medium, 4 low (ayrı alt ajan; kurum izolasyonu, bayrak ve i18n temiz).
+1. medium — kaydı olmayan kaynak 0 / %0 gösteriyordu → kayıt yoksa tüm rakamlar, teslimat % ve pacing `null`.
+2. medium — rakamı eksik satır 0 sayılıyordu → böyle bir satır varsa o kaynağın rakamı `null` (DB CHECK'leri zaten engeller; savunma amaçlı).
+3. medium — **kısmen ertelendi**: tüm satırlar belleğe alınıyor. DB tarafı toplama gerçek Postgres olmadan test edilemediği için şimdilik 200.000 satır sınırı (413); `count` sütunlu toplu satırlar gerçek kampanyaları bunun çok altında tutar.
+4. low — CSV formül enjeksiyonu → `= + - @ TAB CR` ile başlayan metin hücresine `'` öneki, `\r` tırnaklanır.
+5. low — pacing yuvarlanmış değerlerden hesaplanıyordu → yuvarlanmamış oran, en sonda yuvarlama.
+6. low — her 404 güvenlik olayı sayılıyordu ve audit hatası 404'ü 500 yapabiliyordu → yalnız başka kuruma ait mevcut kampanya audit'lenir; audit hatası yutulur.
+7. low — seçici ilk 100 kampanyayla sınırlıydı → tüm sayfalar (en çok 1.000) ve kesilme uyarısı.
+
+## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-reporting) → ✅ Onaylandı
+
+Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap (3 numara kısmen, bilinçli erteleme). Build, typecheck, lint, 172 unit test geçti.

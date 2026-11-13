@@ -18,10 +18,14 @@ export function multiplierAt(profiles: ReportMultiplier[], at: Date): Prisma.Dec
   return profiles.find(p => p.validFrom <= at && (!p.validTo || at < p.validTo))?.value;
 }
 
-interface Accumulator { playouts: number; declared: Prisma.Decimal; estimated: Prisma.Decimal; uncovered: number }
-const emptyAcc = (): Accumulator => ({ playouts: 0, declared: zero(), estimated: zero(), uncovered: 0 });
+/** `rows`: records seen; `invalid`: records missing their figure (DB CHECKs forbid it; defensive). */
+interface Accumulator { rows: number; invalid: number; playouts: number; declared: Prisma.Decimal; estimated: Prisma.Decimal; uncovered: number }
+const emptyAcc = (): Accumulator => ({ rows: 0, invalid: 0, playouts: 0, declared: zero(), estimated: zero(), uncovered: 0 });
+const UNKNOWN: SourceFigures = { playouts: null, declaredImpressions: null, estimatedImpressions: null, uncoveredPlayouts: null };
 
+/** No records, or any record without its figure → unknown (null), never 0. */
 function figures(source: DeliverySource, acc: Accumulator): SourceFigures {
+  if (!acc.rows || acc.invalid) return UNKNOWN;
   if (!PLAYOUT_SOURCES.includes(source)) {
     return { playouts: null, declaredImpressions: decimalString(acc.declared), estimatedImpressions: null, uncoveredPlayouts: null };
   }
@@ -29,28 +33,37 @@ function figures(source: DeliverySource, acc: Accumulator): SourceFigures {
 }
 
 const round1 = (value: number) => Math.round(value * 10) / 10;
-/** Share of the flight already elapsed at `now`, in percent (0–100). */
-export function elapsedPct(startAt: Date, endAt: Date, now: Date): number {
+/** Unrounded share (0–1) of the flight elapsed at `now`. */
+function elapsedRatio(startAt: Date, endAt: Date, now: Date): number {
   const span = endAt.getTime() - startAt.getTime();
-  if (span <= 0) return 100;
-  return round1(Math.min(1, Math.max(0, (now.getTime() - startAt.getTime()) / span)) * 100);
+  if (span <= 0) return 1;
+  return Math.min(1, Math.max(0, (now.getTime() - startAt.getTime()) / span));
+}
+/** Share of the flight already elapsed at `now`, in percent (0–100, one decimal). */
+export function elapsedPct(startAt: Date, endAt: Date, now: Date): number {
+  return round1(elapsedRatio(startAt, endAt, now) * 100);
 }
 
 /**
  * Delivery % against the campaign goal, per source, never across sources:
  * PLAYOUTS goal → playouts / target; IMPRESSIONS goal → estimated (only when fully covered) or declared / target.
  */
-export function deliveryPct(source: DeliverySource, f: SourceFigures,
-  goal: { primaryGoal: 'PLAYOUTS' | 'IMPRESSIONS' | null; targetPlayouts: bigint | null; targetImpressions: bigint | null }): number | null {
+export function deliveryPct(source: DeliverySource, f: SourceFigures, goal: DeliveryGoal): number | null {
+  const ratio = deliveryRatio(f, goal);
+  return ratio === null ? null : round1(ratio * 100);
+}
+type DeliveryGoal = { primaryGoal: 'PLAYOUTS' | 'IMPRESSIONS' | null; targetPlayouts: bigint | null; targetImpressions: bigint | null };
+/** Unrounded delivered / target, or null. */
+function deliveryRatio(f: SourceFigures, goal: DeliveryGoal): number | null {
   if (goal.primaryGoal === 'PLAYOUTS') {
     if (!goal.targetPlayouts || f.playouts === null) return null;
-    return round1((f.playouts / Number(goal.targetPlayouts)) * 100);
+    return f.playouts / Number(goal.targetPlayouts);
   }
   if (goal.primaryGoal === 'IMPRESSIONS') {
     if (!goal.targetImpressions) return null;
     const delivered = f.declaredImpressions ?? (f.uncoveredPlayouts === 0 ? f.estimatedImpressions : null);
     if (delivered === null) return null;
-    return round1(new Prisma.Decimal(delivered).div(goal.targetImpressions.toString()).mul(100).toNumber());
+    return new Prisma.Decimal(delivered).div(goal.targetImpressions.toString()).toNumber();
   }
   return null;
 }
@@ -73,22 +86,27 @@ export function buildDeliveryReport(input: {
   for (const record of input.records) {
     const targets = [bySource.get(record.source)!, bucket(screenAcc, record.screenId, record.source),
       bucket(dayAcc, record.playedAt.toISOString().slice(0, 10), record.source)];
+    for (const acc of targets) acc.rows++;
     if (record.source === 'DECLARED_IMPRESSION') {
-      for (const acc of targets) acc.declared = acc.declared.add(record.impressions ?? 0);
+      if (record.impressions === null) { for (const acc of targets) acc.invalid++; continue; }
+      for (const acc of targets) acc.declared = acc.declared.add(record.impressions);
       continue;
     }
+    if (record.count === null) { for (const acc of targets) acc.invalid++; continue; }
     const multiplier = multiplierAt(profiles.get(record.screenId) ?? [], record.playedAt);
-    const count = record.count ?? 0;
+    const count = record.count;
     for (const acc of targets) {
       acc.playouts += count;
       if (multiplier) acc.estimated = acc.estimated.add(multiplier.mul(count)); else acc.uncovered += count;
     }
   }
-  const elapsed = elapsedPct(input.startAt, input.endAt, input.now);
+  const elapsed = elapsedRatio(input.startAt, input.endAt, input.now);
   const sources = DELIVERY_SOURCES.map(source => {
     const f = figures(source, bySource.get(source)!);
-    const pct = deliveryPct(source, f, input.goal);
-    return { source, ...f, deliveryPct: pct, pacing: pct === null || elapsed === 0 ? null : Math.round((pct / elapsed) * 100) / 100 };
+    const ratio = deliveryRatio(f, input.goal);
+    // Pacing from unrounded values; rounded once at the end.
+    return { source, ...f, deliveryPct: ratio === null ? null : round1(ratio * 100),
+      pacing: ratio === null || elapsed === 0 ? null : Math.round((ratio / elapsed) * 100) / 100 };
   });
   const rows = (map: Map<string, Map<DeliverySource, Accumulator>>, label: (key: string) => { label: string; detail: string | null }) =>
     [...map.entries()].map(([key, accs]) => ({ key, ...label(key),
@@ -97,5 +115,5 @@ export function buildDeliveryReport(input: {
   const byScreen = rows(screenAcc, key => { const s = screens.get(key); return { label: s?.code ?? key, detail: s ? `${s.name} · ${s.venue}` : null }; })
     .sort((a, b) => a.label.localeCompare(b.label));
   const byDay = rows(dayAcc, key => ({ label: key, detail: null })).sort((a, b) => a.key.localeCompare(b.key));
-  return { elapsedPct: elapsed, sources, byScreen, byDay };
+  return { elapsedPct: round1(elapsed * 100), sources, byScreen, byDay };
 }

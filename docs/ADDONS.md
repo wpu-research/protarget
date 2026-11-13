@@ -98,5 +98,8 @@ istatistik veya bağlantı durumu göstermez.
   tahmin kısmiyse gösterim teslimat %'si `null` ("Hesaplanamadı"). Ekran ve UTC gün
   kırılımı; iptal edilmiş satırlar hariç ve sayısı gösterilir.
 - Finansal alan yoktur (fiyat, bütçe, spend raporda ve portal yanıtında hiç yer almaz).
-- CSV dışa aktarma istemcide aynı JSON'dan üretilir; boş hücre = bilinmiyor (0 değil).
+- CSV dışa aktarma istemcide aynı JSON'dan üretilir; boş hücre = bilinmiyor (0 değil);
+  formül gibi başlayan metin hücreleri `'` ile etkisizleştirilir.
+- Kaydı olmayan kaynak `null` ("—") gösterilir, 0 değil. Rapor bellekte hesaplanır;
+  kampanya başına 200.000 satır sınırı vardır (DB tarafı toplama ertelendi).
 - Ekran görüntüsü/video kanıtı yok (MVP kararı: sonraya).

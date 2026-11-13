@@ -20,9 +20,11 @@ function Estimate({ f }: { f: SourceFigures }) {
     {f.uncoveredPlayouts ? ` · ${text('report.partial', { count: f.uncoveredPlayouts })}` : ''}</small>;
 }
 
-function csvCell(value: string | number | null) {
-  const textValue = value === null ? '' : String(value);
-  return /[",\n]/.test(textValue) ? `"${textValue.replace(/"/g, '""')}"` : textValue;
+/** Text that a spreadsheet would run as a formula is prefixed with ' (numbers are left as they are). */
+export function csvCell(value: string | number | null) {
+  let textValue = value === null ? '' : String(value);
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(textValue) && !/^-?\d+(\.\d+)?$/.test(textValue)) textValue = `'${textValue}`;
+  return /[",\r\n]/.test(textValue) ? `"${textValue.replace(/"/g, '""')}"` : textValue;
 }
 
 /** Builds the CSV on the client from the same JSON the page shows; empty cell = unknown (never 0). */

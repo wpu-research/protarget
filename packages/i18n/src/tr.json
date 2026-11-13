@@ -860,5 +860,6 @@
   "report.pickHint": "Rapor için bir kampanya seçin.",
   "report.portalTitle": "Kampanya raporları",
   "report.portalDescription": "Yalnız kurumunuzun kampanyaları, salt okunur. Her rakamın kaynağı ve doğrulama düzeyi yanında yazılıdır.",
-  "report.portalEmpty": "Görüntülenebilir kampanya yok."
+  "report.portalEmpty": "Görüntülenebilir kampanya yok.",
+  "report.truncated": "Liste ilk 1.000 kampanya ile sınırlı; daha eskisi için kampanya sayfasından kimliğini kullanın."
 }

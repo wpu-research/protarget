@@ -11,6 +11,8 @@ import { SessionService } from '../auth/session.service';
 import { AddonsService } from '../addons/addons.service';
 import { buildDeliveryReport } from './delivery-report';
 
+/** Upper bound for the in-memory report (aggregated CSV rows keep real campaigns far below it). */
+export const MAX_REPORT_RECORDS = 200_000;
 /** Statuses a client never sees: a draft is internal planning, not a campaign they bought. */
 const HIDDEN_FROM_PORTAL = ['DRAFT', 'READY_FOR_REVIEW'] as const;
 
@@ -69,8 +71,14 @@ export class ReportingService {
     } catch (error) {
       // Not found under the tenant predicate: record the attempt, answer as if it does not exist.
       if (error instanceof ApiError && error.code === 'NOT_FOUND') {
-        await this.audit.recordSecurity({ userId: actor.user.id, action: 'UNAUTHORIZED_PORTAL_ACCESS', entityType: 'campaign',
-          entityId: campaignId, metadata: { organizationId: actor.user.orgId } });
+        try {
+          // Only a campaign that exists and belongs to someone else is a security event; a missing, deleted or
+          // own draft campaign (e.g. an old bookmark) is just "not found".
+          const foreign = await this.db.campaign.count({ where: { id: campaignId, deletedAt: null,
+            NOT: { OR: portalCampaignWhere(actor).OR } } });
+          if (foreign) await this.audit.recordSecurity({ userId: actor.user.id, action: 'UNAUTHORIZED_PORTAL_ACCESS',
+            entityType: 'campaign', entityId: campaignId, metadata: { organizationId: actor.user.orgId } });
+        } catch { /* auditing must not turn a 404 into a 500 */ }
       }
       throw error;
     }
@@ -86,6 +94,10 @@ export class ReportingService {
   private async build(tx: Prisma.TransactionClient, where: Prisma.CampaignWhereInput, now: Date): Promise<CampaignDeliveryReport> {
     const campaign = await tx.campaign.findFirst({ where, select: campaignSelect });
     if (!campaign) throw missing('Campaign');
+    // In-memory aggregation is bounded; DB-side aggregation is deferred until it can be tested on real Postgres.
+    if (await tx.deliveryRecord.count({ where: { campaignId: campaign.id, voidedAt: null } }) > MAX_REPORT_RECORDS) {
+      throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'Too many delivery records for an on-line report');
+    }
     const [records, voidedRecords] = await Promise.all([
       tx.deliveryRecord.findMany({ where: { campaignId: campaign.id, voidedAt: null },
         select: { source: true, screenId: true, playedAt: true, count: true, impressions: true } }),

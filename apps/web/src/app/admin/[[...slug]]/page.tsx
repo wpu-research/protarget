@@ -92,12 +92,12 @@ async function addonBody(addon: AddonState, search: Record<string, string | stri
         voided: link({ voided: showVoided ? undefined : 'true', page: 1 }) }} /></>;
   }
   if (addon.key === 'reporting' && addon.enabled) {
-    const campaigns = await serverApi<CampaignPage>('/campaigns?page=1&pageSize=100');
+    const campaigns = await listAllCapped<CampaignPage['items'][number]>('/campaigns');
     const campaignId = typeof search.campaignId === 'string' && uuidPattern.test(search.campaignId) ? search.campaignId : undefined;
     const report = campaignId ? await serverApi<CampaignDeliveryReport>(`/reports/campaigns/${campaignId}/delivery`, true) : undefined;
     return <><AddonDetail addon={addon} compact />
       <ReportPicker campaigns={campaigns.items.filter(c => c.status !== 'DRAFT').map(c => ({ id: c.id, label: `${c.code} · ${c.name}` }))}
-        selected={campaignId} action="/admin/addons/reporting" />
+        selected={campaignId} action="/admin/addons/reporting" truncated={campaigns.truncated} />
       {report && <DeliveryReportView report={report} />}</>;
   }
   return <AddonDetail key={addon.key} addon={addon} />;
