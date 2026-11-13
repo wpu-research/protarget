@@ -223,6 +223,7 @@ model User {
   approvedCreatives   Creative[]           @relation("CreativeApprover")
   revokedCreatives    Creative[]           @relation("CreativeRevoker")
   cmsOperations       CampaignCmsOperation[]
+  screenHolds         ScreenHold[]
   auditLogs           AuditLog[]
   campaignPermissions CampaignPermission[]
 
@@ -379,6 +380,7 @@ model Screen {
   playerErrors      PlayerErrorLog[]
   dailyDelivery     DailyCampaignScreenDelivery[]
   cmsOperations     CampaignCmsOperation[]
+  holds             ScreenHold[]
 
   @@index([venueId])
   @@map("screens")
@@ -874,4 +876,27 @@ model CampaignCmsOperation {
 
   @@index([campaignId, screenId, performedAt])
   @@map("campaign_cms_operations")
+}
+
+/// Ek özellik "kapasite": geçici slot tutma. Yalnız bilgi amaçlıdır; booking'i engellemez.
+/// Silinmez; serbest bırakma `releasedAt` + gerekçe ile kaydedilir.
+model ScreenHold {
+  id            String    @id @default(uuid()) @db.Uuid
+  screenId      String    @db.Uuid
+  label         String
+  startAt       DateTime  @db.Timestamptz
+  endAt         DateTime  @db.Timestamptz
+  slots         Int
+  expiresAt     DateTime  @db.Timestamptz
+  note          String?
+  createdById   String    @db.Uuid
+  createdAt     DateTime  @default(now()) @db.Timestamptz
+  releasedAt    DateTime? @db.Timestamptz
+  releaseReason String?
+
+  screen    Screen @relation(fields: [screenId], references: [id])
+  createdBy User   @relation(fields: [createdById], references: [id])
+
+  @@index([screenId, startAt])
+  @@map("screen_holds")
 }

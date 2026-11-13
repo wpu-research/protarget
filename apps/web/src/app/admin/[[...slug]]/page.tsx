@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -15,6 +15,7 @@ import { Creatives } from '@/components/Creatives';
 import { FleetView } from '@/components/fleet/FleetView';
 import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory, type ScreenAd } from '@/components/Inventory';
 import { AddonList, AddonDetail } from '@/components/Addons';
+import { CapacityView } from '@/components/Capacity';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -46,6 +47,28 @@ async function screenAds(): Promise<Record<string, ScreenAd[]>> {
   } catch { /* ads are optional context */ }
   return ads;
 }
+/** Working screen of an enabled add-on; a passive or placeholder module only shows its description. */
+async function addonBody(addon: AddonState, search: Record<string, string | string[] | undefined>) {
+  if (addon.key === 'capacity' && addon.enabled) {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = typeof search.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.from) ? search.from : today;
+    const days = typeof search.days === 'string' && /^(?:[1-9]|[12]\d|3[01])$/.test(search.days) ? Number(search.days) : 7;
+    const venueId = typeof search.venueId === 'string' && uuidPattern.test(search.venueId) ? search.venueId : undefined;
+    const query = new URLSearchParams({ from, days: String(days), page: String(pageNumber(search.page)), pageSize: '50' });
+    if (venueId) query.set('venueId', venueId);
+    const [report, holds, venues, screens] = await Promise.all([
+      serverApi<CapacityReport>(`/capacity?${query}`),
+      serverApi<PageResult<ScreenHoldView>>('/capacity/holds?pageSize=50'),
+      listAllCapped<InventoryVenue>('/venues?active=true'),
+      serverApi<PageResult<InventoryScreen>>('/screens?active=true&pageSize=100'),
+    ]);
+    return <><AddonDetail addon={addon} compact />
+      <CapacityView report={report} holds={holds} filters={{ from, days, venueId }}
+        venues={venues.items.map(venue => ({ id: venue.id, label: venue.name }))}
+        screens={screens.items.map(screen => ({ id: screen.id, label: `${screen.screenId} · ${screen.name}` }))} /></>;
+  }
+  return <AddonDetail key={addon.key} addon={addon} />;
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export default async function AdminPage({ params, searchParams }: {
   params: Promise<{ slug?: string[] }>; searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -65,7 +88,7 @@ export default async function AdminPage({ params, searchParams }: {
     return <><p className="eyebrow">{t('addon.eyebrow', language)}</p>
       <h1>{addon ? t(`addon.${addon.key}.name`, language) : t('nav.addons', language)}</h1>
       <p className="page-description">{t('addon.description', language)}</p>
-      {addon ? <AddonDetail key={addon.key} addon={addon} /> : <AddonList addons={addons} />}</>;
+      {addon ? await addonBody(addon, search) : <AddonList addons={addons} />}</>;
   }
   if (slug[0] === 'fleet') {
     if (slug.length > 1) notFound();

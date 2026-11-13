@@ -24,6 +24,7 @@ import { PacingModule } from './modules/pacing/pacing.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpsModule } from './modules/ops/ops.module';
 import { AddonsModule } from './modules/addons/addons.module';
+import { CapacityModule } from './modules/capacity/capacity.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { AddonsModule } from './modules/addons/addons.module';
     NotificationsModule,
     OpsModule,
     AddonsModule,
+    CapacityModule,
   ],
 })
 export class AppModule {}

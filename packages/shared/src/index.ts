@@ -7,3 +7,4 @@ export * from './inventory';
 export * from './campaigns';
 export * from './fleet';
 export * from './addons';
+export * from './capacity';

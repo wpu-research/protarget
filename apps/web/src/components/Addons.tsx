@@ -66,8 +66,9 @@ export function AddonList({ addons }: { addons: AddonState[] }) {
 }
 
 /** Detail of a module that is passive or has no working screen yet. Shows no data of any kind. */
-export function AddonDetail({ addon }: { addon: AddonState }) {
+export function AddonDetail({ addon, compact = false }: { addon: AddonState; compact?: boolean }) {
   const text = useText();
+  if (compact) return <section className="card addon-compact"><StateBadges addon={addon} /><Changed addon={addon} /><Toggle addon={addon} /></section>;
   return <section className="card">
     <StateBadges addon={addon} />
     <p>{text(summaryKey(addon))}</p>
