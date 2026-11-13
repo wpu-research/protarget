@@ -31,6 +31,8 @@ export type ApiErrorCode =
   | 'STORAGE_UNAVAILABLE'
   | 'DUPLICATE_CREATIVE'
   | 'CAMPAIGN_NOT_READY'
+  | 'ADDON_DISABLED'
+  | 'ADDON_NOT_AVAILABLE'
   | 'INTERNAL_ERROR';
 
 /** Spec v2 §33 standart hata zarfı. */

@@ -29,6 +29,7 @@ export function errorKey(error: unknown): MessageKey {
     UNAUTHENTICATED: 'error.authentication', FORBIDDEN: 'error.forbidden', RATE_LIMITED: 'error.rateLimit',
     VALIDATION_FAILED: 'error.validation', INVALID_STATE_TRANSITION: 'error.conflict', NOT_FOUND: 'error.notFound',
     INVITATIONS_DISABLED: 'user.invitesDisabled',
+    ADDON_DISABLED: 'error.addonDisabled', ADDON_NOT_AVAILABLE: 'error.addonNotAvailable',
   };
   return keys[error.code] ?? 'error.unavailable';
 }

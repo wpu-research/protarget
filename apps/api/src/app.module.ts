@@ -23,6 +23,11 @@ import { DealsModule } from './modules/deals/deals.module';
 import { PacingModule } from './modules/pacing/pacing.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OpsModule } from './modules/ops/ops.module';
+import { AddonsModule } from './modules/addons/addons.module';
+import { CapacityModule } from './modules/capacity/capacity.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
+import { SalesModule } from './modules/sales/sales.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
 
 @Module({
   imports: [
@@ -50,6 +55,11 @@ import { OpsModule } from './modules/ops/ops.module';
     PacingModule,
     NotificationsModule,
     OpsModule,
+    AddonsModule,
+    CapacityModule,
+    DeliveryModule,
+    SalesModule,
+    CatalogModule,
   ],
 })
 export class AppModule {}

@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView, type DeliveryBatchView, type DeliveryRecordView, type CampaignDeliveryReport, type RateView, type SalesPackageView, type ProposalDocument,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -14,6 +14,12 @@ import { CampaignDetailView } from '@/components/CampaignDetail';
 import { Creatives } from '@/components/Creatives';
 import { FleetView } from '@/components/fleet/FleetView';
 import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory, type ScreenAd } from '@/components/Inventory';
+import { AddonList, AddonDetail } from '@/components/Addons';
+import { CapacityView } from '@/components/Capacity';
+import { DeliveryView } from '@/components/Delivery';
+import { DeliveryReportView } from '@/components/Report';
+import { ReportPicker } from '@/components/ReportPicker';
+import { ProposalView, SalesView } from '@/components/Sales';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -45,6 +51,74 @@ async function screenAds(): Promise<Record<string, ScreenAd[]>> {
   } catch { /* ads are optional context */ }
   return ads;
 }
+/** Working screen of an enabled add-on; a passive or placeholder module only shows its description. */
+async function addonBody(addon: AddonState, search: Record<string, string | string[] | undefined>) {
+  if (addon.key === 'capacity' && addon.enabled) {
+    const today = new Date().toISOString().slice(0, 10);
+    const from = typeof search.from === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(search.from) ? search.from : today;
+    const days = typeof search.days === 'string' && /^(?:[1-9]|[12]\d|3[01])$/.test(search.days) ? Number(search.days) : 7;
+    const venueId = typeof search.venueId === 'string' && uuidPattern.test(search.venueId) ? search.venueId : undefined;
+    const query = new URLSearchParams({ from, days: String(days), page: String(pageNumber(search.page)), pageSize: '50' });
+    if (venueId) query.set('venueId', venueId);
+    const allHolds = search.holds === 'all';
+    const holdPage = pageNumber(search.holdPage);
+    const [report, holds, venues, screens] = await Promise.all([
+      serverApi<CapacityReport>(`/capacity?${query}`),
+      serverApi<PageResult<ScreenHoldView>>(`/capacity/holds?pageSize=50&page=${holdPage}${allHolds ? '' : '&activeOnly=true'}`),
+      listAllCapped<InventoryVenue>('/venues?active=true'),
+      listAllCapped<InventoryScreen>('/screens?active=true'),
+    ]);
+    return <><AddonDetail addon={addon} compact />
+      <CapacityView report={report} holds={holds} filters={{ from, days, venueId, allHolds }}
+        venues={venues.items.map(venue => ({ id: venue.id, label: venue.name }))}
+        screens={screens.items.map(screen => ({ id: screen.id, label: `${screen.screenId} · ${screen.name}` }))} /></>;
+  }
+  if (addon.key === 'proofOfPlay' && addon.enabled) {
+    const recordPage = pageNumber(search.page), batchPage = pageNumber(search.batchPage);
+    const showVoided = search.voided === 'true';
+    const [batches, records] = await Promise.all([
+      serverApi<PageResult<DeliveryBatchView>>(`/delivery/imports?pageSize=20&page=${batchPage}`),
+      serverApi<PageResult<DeliveryRecordView>>(`/delivery/records?pageSize=50&page=${recordPage}${showVoided ? '&includeVoided=true' : ''}`),
+    ]);
+    const link = (changes: Record<string, string | number | undefined>) => {
+      const params = new URLSearchParams({ page: String(recordPage), batchPage: String(batchPage) });
+      if (showVoided) params.set('voided', 'true');
+      for (const [key, value] of Object.entries(changes)) { if (value === undefined) params.delete(key); else params.set(key, String(value)); }
+      return `/admin/addons/proofOfPlay?${params}`;
+    };
+    return <><AddonDetail addon={addon} compact />
+      <DeliveryView batches={batches} records={records} href={{ showVoided,
+        recordsPrev: link({ page: recordPage - 1 }), recordsNext: link({ page: recordPage + 1 }),
+        batchesPrev: link({ batchPage: batchPage - 1 }), batchesNext: link({ batchPage: batchPage + 1 }),
+        voided: link({ voided: showVoided ? undefined : 'true', page: 1 }) }} /></>;
+  }
+  if (addon.key === 'reporting' && addon.enabled) {
+    const campaigns = await listAllCapped<CampaignPage['items'][number]>('/campaigns');
+    const campaignId = typeof search.campaignId === 'string' && uuidPattern.test(search.campaignId) ? search.campaignId : undefined;
+    const report = campaignId ? await serverApi<CampaignDeliveryReport>(`/reports/campaigns/${campaignId}/delivery`, true) : undefined;
+    return <><AddonDetail addon={addon} compact />
+      <ReportPicker campaigns={campaigns.items.filter(c => c.status !== 'DRAFT').map(c => ({ id: c.id, label: `${c.code} · ${c.name}` }))}
+        selected={campaignId} action="/admin/addons/reporting" truncated={campaigns.truncated} />
+      {report && <DeliveryReportView report={report} />}</>;
+  }
+  if (addon.key === 'sales' && addon.enabled) {
+    const campaignId = typeof search.campaignId === 'string' && uuidPattern.test(search.campaignId) ? search.campaignId : undefined;
+    const [rates, packages, screens, campaigns, proposal] = await Promise.all([
+      serverApi<PageResult<RateView>>('/sales/rates?pageSize=100'),
+      serverApi<PageResult<SalesPackageView>>('/sales/packages?pageSize=100'),
+      listAllCapped<InventoryScreen>('/screens?active=true'),
+      listAllCapped<CampaignPage['items'][number]>('/campaigns'),
+      campaignId ? serverApi<ProposalDocument>(`/sales/proposals/${campaignId}`, true) : undefined,
+    ]);
+    return <><AddonDetail addon={addon} compact />
+      <SalesView rates={rates} packages={packages} screens={screens.items.map(s => ({ id: s.id, label: `${s.screenId} · ${s.name}` }))} />
+      <h2 className="report-gap">{t('sales.proposalPick', await locale())}</h2>
+      <ReportPicker campaigns={campaigns.items.filter(c => c.status !== 'CANCELLED').map(c => ({ id: c.id, label: `${c.code} · ${c.name}` }))}
+        selected={campaignId} action="/admin/addons/sales" truncated={campaigns.truncated} />
+      {proposal && <div className="report-gap"><ProposalView proposal={proposal} /></div>}</>;
+  }
+  return <AddonDetail key={addon.key} addon={addon} />;
+}
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export default async function AdminPage({ params, searchParams }: {
   params: Promise<{ slug?: string[] }>; searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -56,6 +130,17 @@ export default async function AdminPage({ params, searchParams }: {
   const search = await searchParams;
   const page = pageNumber(search.page);
   if (path === '/admin/inventory') redirect('/admin/inventory/venues');
+  if (path === '/admin/reporting') redirect('/admin/addons/reporting');
+  if (slug[0] === 'addons') {
+    if (slug.length > 2 || (slug[1] && !isAddonKey(slug[1]))) notFound();
+    const addons = await serverApi<AddonState[]>('/addons');
+    const addon = slug[1] ? addons.find(item => item.key === slug[1]) : undefined;
+    if (slug[1] && !addon) notFound();
+    return <><p className="eyebrow">{t('addon.eyebrow', language)}</p>
+      <h1>{addon ? t(`addon.${addon.key}.name`, language) : t('nav.addons', language)}</h1>
+      <p className="page-description">{t('addon.description', language)}</p>
+      {addon ? await addonBody(addon, search) : <AddonList addons={addons} />}</>;
+  }
   if (slug[0] === 'fleet') {
     if (slug.length > 1) notFound();
     const includeInactive = search.inactive === 'true';

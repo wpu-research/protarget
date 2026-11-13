@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-
-/** Faz 4 — henüz uygulanmadı (bkz. docs/BUILD_PROMPT.md §23). */
-@Module({})
+import { ReportingController } from './reporting.controller';
+import { ReportingService } from './reporting.service';
+/** Ek özellik "teslimat raporları" (varsayılan kapalı). */
+@Module({ controllers: [ReportingController], providers: [ReportingService] })
 export class ReportingModule {}
