@@ -15,6 +15,14 @@ sha256 + ayrı onay), ekran/tarih/hedef/ticari plan, sade durum makinesi ve
 salt eklenen CMS işlem kaydı. Durumlar ve CMS kayıtları operatör beyanıdır,
 oynatma kanıtı değildir. Ayrıntılar: `docs/CAMPAIGNS.md`.
 
+**Ek özellikler (yerel, `story/addon-*`, yayımlanmadı, hepsi varsayılan kapalı):**
+Broadsign karşılaştırmasındaki dokuz alan admin → "Ek özellikler" sayfasında.
+Çalışır ama kapalı: kapasite/hold, CMS oynatma kaydı içe aktarma, teslimat
+raporları (admin + portal), satış araçları (fiyat kartı, paket, teklif), alıcı
+kataloğu. Yalnız yer tutucu (açılamaz): oynatma/CMS kontrolü, programatik satış,
+kitle ölçümü, dinamik içerik. Açmak mevcut booking akışını değiştirmez.
+Ayrıntılar: `docs/ADDONS.md`.
+
 ## Ürün kapsamı
 
 Güncel kararlar: `docs/MVP_DECISIONS.md`.
@@ -138,6 +146,8 @@ pnpm local openapi
   bağlantı veya oynatma kanıtı değildir. Manuel çarpan ve yönetici onayı,
   doğrulanmış izleyici sayısı ya da proof-of-play anlamına gelmez.
 - Support yalnız `/me` ve `/health`; ajans/marka yalnız kendi kurumunu okur.
+- Ek özellik bayrakları `settings` tablosundadır; satır yoksa kapalıdır. Yer tutucu
+  alanlar (player, DSP/SSP, kitle, DCO) dış sistem olmadan açılamaz ve sahte veri göstermez.
 - Finansal görünürlük tercihleri kaydedilir; kampanya ticari alanları yalnız
   admin API'sinde döner, spend hesaplanmaz ve finansal rapor yoktur.
 - MFA sonraki güvenlik fazında; MFA etkin hesaplar mevcut girişten reddedilir.

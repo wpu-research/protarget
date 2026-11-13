@@ -143,3 +143,11 @@ Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap (3 numara kısmen
 ## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-sales) → ✅ Onaylandı
 
 Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap. Build, typecheck, lint, 176 unit test geçti.
+
+## Code Review Findings — Tur 1 (13 Kasım 2026, story addon-buyer-catalog) → ✅ Onaylandı
+
+0 patch, 0 intent_gap (ayrı alt ajan). Not: fiyat görünürlük kuralı test edilmiyordu → `catalogPricesVisible` saf fonksiyonu ve birim testi eklendi. README güncellendi. Build, typecheck, lint, 12 suite / 180 unit test geçti.
+
+## Sprint sonu durumu (13 Kasım 2026)
+
+Altı story `done`, dallar zincir halinde: `story/addon-foundation` → `addon-capacity` → `addon-delivery-import` → `addon-reporting` → `addon-sales` → `addon-buyer-catalog`. `main`'e merge, push ve Railway yayını kullanıcı onayı bekliyor. Integration/E2E testleri ve migration'lar gerçek Postgres olmadığı için çalıştırılmadı.

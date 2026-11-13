@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { catalogScreenSelect, currentPrices, presentCatalogScreen } from '../src/modules/catalog/catalog.service';
+import { catalogPricesVisible, catalogScreenSelect, currentPrices, presentCatalogScreen } from '../src/modules/catalog/catalog.service';
 
 const row = {
   id: 's1', screenId: 'SCR-1', name: 'Ön', resolutionWidth: 1920, resolutionHeight: 1080, orientation: 'LANDSCAPE' as const,
@@ -26,5 +26,10 @@ describe('Buyer catalog add-on', () => {
       { screenId: 's1', dailyRate: new Prisma.Decimal('100'), currency: 'TRY', validFrom: d('2026-11-01T00:00:00Z') },
     ]);
     expect(prices.get('s1')!.dailyRate.toString()).toBe('120');
+  });
+  it('opens prices only when the organisation opted in and the sales add-on is enabled', () => {
+    expect(catalogPricesVisible(false, ['sales', 'buyerCatalog'])).toBe(false);
+    expect(catalogPricesVisible(true, ['buyerCatalog'])).toBe(false);
+    expect(catalogPricesVisible(true, ['sales', 'buyerCatalog'])).toBe(true);
   });
 });

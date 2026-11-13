@@ -34,6 +34,9 @@ export function currentPrices(rows: Price[]): Map<string, Price> {
   return map;
 }
 
+/** Financial fields stay closed unless the organisation opted in AND the sales add-on runs. */
+export const catalogPricesVisible = (spendVisible: boolean, enabled: readonly string[]) => spendVisible && enabled.includes('sales');
+
 @Injectable()
 export class CatalogService {
   constructor(private readonly db: PrismaService, private readonly sessions: SessionService, private readonly addons: AddonsService) {}
@@ -45,7 +48,7 @@ export class CatalogService {
       if (session.user.role !== Role.AGENCY && session.user.role !== Role.ADVERTISER) throw forbidden();
       await this.addons.requireEnabled(tx, 'buyerCatalog');
       // Financial fields are closed by default; read from the database, not the token.
-      const pricesVisible = session.user.org.spendVisible && (await this.addons.enabledKeys(tx)).includes('sales');
+      const pricesVisible = catalogPricesVisible(session.user.org.spendVisible, await this.addons.enabledKeys(tx));
       const where: Prisma.ScreenWhereInput = { active: true, deletedAt: null, venue: { active: true },
         ...(query.venueId ? { venueId: query.venueId } : {}) };
       const [rows, total, venues] = await Promise.all([
