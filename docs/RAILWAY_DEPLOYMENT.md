@@ -1,5 +1,29 @@
 # Railway pilot yayınları
 
+## 13 Kasım 2026 — ek özellik modülleri (Broadsign farkı; `main` `04d2a5b`)
+
+Kullanıcı "Evet, yayınla" dedi. Kaynak: `main` `04d2a5b` (6 addon story'si CR onaylı merge;
+`fc94ee8` filo reklam görselleri dahil). Temiz `git archive` klasöründen, `protarget`/`production`
+projesine bağlı geçici klasörden `railway up`. Tüm ek modüller varsayılan **kapalı**.
+
+Yayın öncesi `main` üzerinde (Node 24.22.2): build, typecheck, lint geçti; birim 180/180;
+yalıtılmış PostgreSQL 14'te 11 migration temiz uygulandı + entegrasyon 97/97.
+**Çalıştırılmadı:** Playwright E2E, admin girişli canlı smoke, public asset secret taraması.
+Addon modüllerinin kendi entegrasyon testi yok (yalnız birim).
+
+| Adım | Sonuç |
+|---|---|
+| Yedek | 133.476 bayt PostgreSQL custom archive; Postgres container'ında `pg_restore --list` ile doğrulandı (32 tablo verisi); restore tatbikatı yapılmadı. Gitignored `.local/backups/protarget-20261113-pre-addons-04d2a5b.dump` (0600) |
+| Migration | `7524df6a-2cce-443a-8a35-829f17c7c9d2` — `schema`, `runtime-role`, `runtime-grants`, `administrator`, `status`, `all` tamam; `_prisma_migrations`: 11 uygulandı, 0 başarısız (son: `20261113000200_addon_sales`) |
+| API | `6df71fdb-9ec8-4f78-80cb-c6c74d849543` — `SUCCESS`, `api listening port=4100`, günlüklerde hata 0 |
+| Web | `73635d1d-0770-458d-8be3-0fa419cab29e` — `SUCCESS`, `Ready` |
+
+Kimliksiz dış kontroller: `/api/v1/health` 200 (`database: up`), `/login` 200, `/admin` ve
+`/admin/addons` 307 (girişe), `addons`/`campaigns`/`capacity`/`delivery` uçları 401,
+yanlış Origin ile POST 403.
+Geri dönüş: önceki API `495d5e05-e88b-4d2d-81e4-58b132b8525d`, web `8c280bef-b854-4fc2-9d87-69b6502bcc82`.
+Uygulama geri dönüşü 3 yeni migration'ı geri almaz; gerekirse yukarıdaki yedekten restore gerekir.
+
 ## 12 Kasım 2026 — kampanya sertleştirme + ekran kartları/duvarı (`main` `c443303`)
 
 Kullanıcı "hepsini commitle canlıya al" dedi. `story/campaign-hardening` (`5c1bfd5`) ve
