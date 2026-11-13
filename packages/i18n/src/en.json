@@ -771,5 +771,7 @@
   "capacity.releaseReason": "Reason for release (at least 3 characters):",
   "capacity.holdState.ACTIVE": "Active",
   "capacity.holdState.EXPIRED": "Expired",
-  "capacity.holdState.RELEASED": "Released"
+  "capacity.holdState.RELEASED": "Released",
+  "capacity.showActiveHolds": "Only holds that still count",
+  "capacity.showAllHolds": "Show all holds (incl. released/expired)"
 }

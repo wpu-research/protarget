@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CampaignStatus, Prisma } from '@prisma/client';
 import {
-  CAPACITY_COUNTED_STATUSES, type CapacityReport, type PageResult, type ScreenHoldView,
+  CAPACITY_IGNORED_STATUSES, type CapacityReport, type PageResult, type ScreenHoldView,
 } from '@protarget/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { Principal } from '../../common/identity';
@@ -29,8 +29,15 @@ export function presentHold(row: HoldRow, now: Date): ScreenHoldView {
     expiresAt: row.expiresAt.toISOString(), note: row.note, createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
     releasedAt: row.releasedAt?.toISOString() ?? null, releaseReason: row.releaseReason,
-    state: row.releasedAt ? 'RELEASED' : row.expiresAt.getTime() <= now.getTime() ? 'EXPIRED' : 'ACTIVE',
+    state: row.releasedAt ? 'RELEASED'
+      : Math.min(row.expiresAt.getTime(), row.endAt.getTime()) <= now.getTime() ? 'EXPIRED' : 'ACTIVE',
   };
+}
+
+/** Screen-specific dayparts win over campaign-wide ones (screenId null). */
+export function screenSchedule<T extends { screenId: string | null; dayOfWeek: number; startTime: string; endTime: string }>(rows: T[], screenId: string) {
+  const own = rows.filter(row => row.screenId === screenId);
+  return (own.length ? own : rows.filter(row => row.screenId === null)).map(({ dayOfWeek, startTime, endTime }) => ({ dayOfWeek, startTime, endTime }));
 }
 
 @Injectable()
@@ -56,22 +63,25 @@ export class CapacityService {
       const [bookings, holds] = await Promise.all([
         tx.campaignScreen.findMany({
           where: { screenId: { in: ids }, active: true, campaign: {
-            deletedAt: null, status: { in: [...CAPACITY_COUNTED_STATUSES] as CampaignStatus[] },
+            deletedAt: null, status: { notIn: [...CAPACITY_IGNORED_STATUSES] as CampaignStatus[] },
             startAt: { lt: to }, endAt: { gt: from } } },
           select: { screenId: true, campaign: { select: { id: true, code: true, status: true, startAt: true, endAt: true, timezone: true,
-            schedules: { where: { screenId: null }, select: { dayOfWeek: true, startTime: true, endTime: true } } } } },
+            schedules: { select: { screenId: true, dayOfWeek: true, startTime: true, endTime: true } } } } },
         }),
         tx.screenHold.findMany({
           where: { screenId: { in: ids }, releasedAt: null, expiresAt: { gt: now }, startAt: { lt: to }, endAt: { gt: from } },
-          select: { id: true, screenId: true, label: true, startAt: true, endAt: true, slots: true },
+          select: { id: true, screenId: true, label: true, startAt: true, endAt: true, slots: true, expiresAt: true },
         }),
       ]);
       const items = screens.map(screen => {
         const result = screenCapacity(screen, from, query.days,
           bookings.filter(row => row.screenId === screen.id).map(({ campaign }) => ({
             campaignId: campaign.id, code: campaign.code, status: campaign.status,
-            startAt: campaign.startAt, endAt: campaign.endAt, timezone: campaign.timezone, schedule: campaign.schedules })),
-          holds.filter(hold => hold.screenId === screen.id));
+            startAt: campaign.startAt, endAt: campaign.endAt, timezone: campaign.timezone,
+            schedule: screenSchedule(campaign.schedules, screen.id) })),
+          // A hold stops counting when it expires, even if its window runs longer.
+          holds.filter(hold => hold.screenId === screen.id).map(hold => ({ ...hold,
+            endAt: hold.expiresAt.getTime() < hold.endAt.getTime() ? hold.expiresAt : hold.endAt })));
         return { screenId: screen.id, screenCode: screen.screenId, screenName: screen.name, venueName: screen.venue.name,
           loopLengthSec: screen.loopLengthSec, defaultSlotLengthSec: screen.defaultSlotLengthSec, ...result };
       });
@@ -84,7 +94,8 @@ export class CapacityService {
     return inventoryTransaction(this.db, async tx => {
       await this.sessions.requireAdmin(tx, actor);
       await this.addons.requireEnabled(tx, 'capacity');
-      const where: Prisma.ScreenHoldWhereInput = query.screenId ? { screenId: query.screenId } : {};
+      const where: Prisma.ScreenHoldWhereInput = { ...(query.screenId ? { screenId: query.screenId } : {}),
+        ...(query.activeOnly ? { releasedAt: null, expiresAt: { gt: now }, endAt: { gt: now } } : {}) };
       const [rows, total] = await Promise.all([
         tx.screenHold.findMany({ where, select: holdSelect, skip: query.skip, take: query.pageSize,
           orderBy: [{ createdAt: 'desc' }, { id: 'asc' }] }),
@@ -99,6 +110,7 @@ export class CapacityService {
     if (endAt.getTime() <= startAt.getTime()) throw invalid('endAt must be after startAt');
     if (endAt.getTime() - startAt.getTime() > MAX_HOLD_MS) throw invalid('A hold may cover at most 366 days');
     if (expiresAt.getTime() <= now.getTime()) throw invalid('expiresAt must be in the future');
+    if (expiresAt.getTime() <= startAt.getTime()) throw invalid('expiresAt must be after startAt');
     if (endAt.getTime() <= now.getTime()) throw invalid('The hold must end in the future');
     return inventoryTransaction(this.db, async tx => {
       await this.sessions.requireAdmin(tx, actor);

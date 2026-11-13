@@ -1,5 +1,6 @@
 'use client';
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { MessageKey } from '@protarget/i18n';
 import {
@@ -27,10 +28,19 @@ function Status({ row }: { row: CapacityScreenRow }) {
 
 export function CapacityView({ report, holds, venues, screens, filters }: {
   report: CapacityReport; holds: PageResult<ScreenHoldView>; venues: CapacityOption[]; screens: CapacityOption[];
-  filters: { from: string; days: number; venueId?: string };
+  filters: { from: string; days: number; venueId?: string; allHolds: boolean };
 }) {
   const text = useText();
   const utc = useUtc();
+  /** Keeps every filter when paging; `changes` overrides single parameters. */
+  const href = (changes: Record<string, string | number | undefined>) => {
+    const params = new URLSearchParams({ from: filters.from, days: String(filters.days), page: String(report.page),
+      holdPage: String(holds.page) });
+    if (filters.venueId) params.set('venueId', filters.venueId);
+    if (filters.allHolds) params.set('holds', 'all');
+    for (const [key, value] of Object.entries(changes)) { if (value === undefined) params.delete(key); else params.set(key, String(value)); }
+    return `/admin/addons/capacity?${params}`;
+  };
   return <div className="stack">
     <form className="card form-grid capacity-filters" method="get">
       <label>{text('capacity.from')}<input type="date" name="from" defaultValue={filters.from} required /></label>
@@ -63,12 +73,26 @@ export function CapacityView({ report, holds, venues, screens, filters }: {
               {item.kind === 'HOLD' ? text('capacity.holdTag', { label: item.label, slots: item.slots }) : item.label}</span>)
               : <small>{text('capacity.noClaims')}</small>}</td>
           </tr>)}</tbody></table></div>}
+      <PageLinks page={report.page} pageSize={report.pageSize} total={report.total} prev={href({ page: report.page - 1 })} next={href({ page: report.page + 1 })} />
     </section>
-    <Holds holds={holds} screens={screens} />
+    <Holds holds={holds} screens={screens} allHolds={filters.allHolds}
+      toggle={href({ holds: filters.allHolds ? undefined : 'all', holdPage: 1 })}
+      prev={href({ holdPage: holds.page - 1 })} next={href({ holdPage: holds.page + 1 })} />
   </div>;
 }
 
-function Holds({ holds, screens }: { holds: PageResult<ScreenHoldView>; screens: CapacityOption[] }) {
+function PageLinks({ page, pageSize, total, prev, next }: { page: number; pageSize: number; total: number; prev: string; next: string }) {
+  const text = useText();
+  if (total <= pageSize) return null;
+  return <div className="pager"><span>{text('common.page', { page, total })}</span><div>
+    {page > 1 && <Link className="button quiet" href={prev}>{text('common.previous')}</Link>}
+    {page * pageSize < total && <Link className="button quiet" href={next}>{text('common.next')}</Link>}
+  </div></div>;
+}
+
+function Holds({ holds, screens, allHolds, toggle, prev, next }: {
+  holds: PageResult<ScreenHoldView>; screens: CapacityOption[]; allHolds: boolean; toggle: string; prev: string; next: string;
+}) {
   const text = useText();
   const utc = useUtc();
   const router = useRouter();
@@ -97,6 +121,7 @@ function Holds({ holds, screens }: { holds: PageResult<ScreenHoldView>; screens:
   return <section className="card" aria-labelledby="holds-heading">
     <h2 id="holds-heading">{text('capacity.holds')}</h2>
     <p className="muted">{text('capacity.holdsDescription')}</p>
+    <p><Link className="button quiet" href={toggle}>{text(allHolds ? 'capacity.showActiveHolds' : 'capacity.showAllHolds')}</Link></p>
     <form key={formKey} className="form-grid two-columns" onSubmit={create}>
       <label>{text('capacity.screen')}<select name="screenId" required defaultValue="">
         <option value="" disabled>{text('capacity.chooseScreen')}</option>
@@ -125,5 +150,6 @@ function Holds({ holds, screens }: { holds: PageResult<ScreenHoldView>; screens:
           <td>{hold.state !== 'RELEASED' && <button type="button" className="button quiet" disabled={busy} onClick={() => release(hold)}>
             {text('capacity.release')}</button>}</td>
         </tr>)}</tbody></table></div>}
+    <PageLinks page={holds.page} pageSize={holds.pageSize} total={holds.total} prev={prev} next={next} />
   </section>;
 }

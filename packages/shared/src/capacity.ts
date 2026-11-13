@@ -1,6 +1,7 @@
 /** Ek özellik "kapasite" yanıt tipleri. Bilinmeyen değer null; sahte değer üretilmez. */
 export const CAPACITY_MAX_DAYS = 31;
-export const CAPACITY_COUNTED_STATUSES = ['READY', 'LIVE', 'PAUSED'] as const;
+/** Booking statuses that do NOT claim a slot; every other (running or paused) status does. */
+export const CAPACITY_IGNORED_STATUSES = ['DRAFT', 'READY_FOR_REVIEW', 'COMPLETED', 'CANCELLED'] as const;
 
 export interface CapacityContributorView { kind: 'BOOKING' | 'HOLD'; id: string; label: string; slots: number; inOverbooking: boolean }
 export interface CapacityScreenRow {

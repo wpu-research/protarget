@@ -82,3 +82,19 @@ yayını yalnız kullanıcının açık onayıyla.
 
 Düzeltme diff'i yeniden incelendi (ana oturum): 0 patch, 0 intent_gap. Build, typecheck, lint, 147 unit test geçti.
 `main`'e merge kullanıcı onayı bekliyor (görev kuralı: merge/push/yayın yalnız açık onayla).
+
+## Code Review Findings — Tur 1 (13 Kasım 2026, story addon-capacity) → Düzeltildi
+
+1 high, 5 medium, 2 low (ayrı alt ajan, salt okunur).
+1. high — yalnız READY/LIVE/PAUSED sayılıyordu; şemadaki diğer çalışan durumlar (LIVE_WITH_EXTERNAL_ERROR, PAUSING…) atlanıyordu → DRAFT/READY_FOR_REVIEW/COMPLETED/CANCELLED dışındaki her durum sayılır.
+2. medium — ekrana özel yayın planı yok sayılıyordu → `screenSchedule`: ekrana özel plan varsa o, yoksa kampanya geneli.
+3. medium — hold `expiresAt` sonrasında da sayılıyordu → talep aralığı `min(endAt, expiresAt)` ile kırpılır.
+4. medium — `expiresAt <= startAt` kabul ediliyordu → 400.
+5. medium — rapor ve ekran seçicide 50/100 kaydın ötesi görünmüyordu → filtreleri koruyan sayfalama, ekran listesi tüm sayfalardan.
+6. medium — eski aktif hold'lar listede kayboluyordu → varsayılan yalnız geçerli hold'lar (`activeOnly`), "tümü" anahtarı ve sayfalama.
+7. low — **ertelendi**: UTC ofseti saat başına önbellekleniyor; 30 dakikalık DST kayması olan bölgelerde (ör. Lord Howe) ≤30 dk sapma. Europe/Istanbul'da DST yok; etkisiz.
+8. low — penceresi bitmiş hold ACTIVE görünüyordu → `min(expiresAt, endAt) <= now` ise EXPIRED.
+
+## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-capacity) → ✅ Onaylandı
+
+Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap (7 numara bilinçli erteleme). Build, typecheck, lint, 155 unit test geçti.

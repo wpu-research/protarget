@@ -41,11 +41,11 @@ istatistik veya bağlantı durumu göstermez.
   aktif gemideki aktif ekranlar için `loop/slot` kapasitesi, dakika çözünürlüğünde
   tepe kullanım, tepe doluluk %, aşım ve aşıma katılan booking/hold'lar, UTC gün
   bazında tepe değer.
-- Sayılanlar: READY/LIVE/PAUSED booking'ler (silinmemiş, ekran satırı aktif),
-  kampanya saat diliminde yayın planı içinde **bir slot**; aktif hold'lar kendi
-  slot sayıları kadar. Planı olmayan ya da saat dilimi tanınmayan booking tüm uçuş
-  süresince sayılır (temkinli). DRAFT, COMPLETED, CANCELLED sayılmaz.
-- Loop veya slot süresi girilmemiş/geçersizse kapasite, doluluk ve aşım `null`
+- Sayılanlar: DRAFT, READY_FOR_REVIEW, COMPLETED ve CANCELLED dışındaki booking'ler
+  (silinmemiş, ekran satırı aktif), kampanya saat diliminde yayın planı içinde
+  **bir slot** (ekrana özel plan varsa o, yoksa kampanya geneli); aktif hold'lar
+  kendi slot sayıları kadar ve yalnız `expiresAt`'e kadar. Planı olmayan ya da saat dilimi tanınmayan booking tüm uçuş
+  süresince sayılır (temkinli). - Loop veya slot süresi girilmemiş/geçersizse kapasite, doluluk ve aşım `null`
   ("Hesaplanamadı"); kullanılan slot yine gösterilir.
 - Hold: `screen_holds` tablosu (migration `20261113000000_addon_capacity_holds`).
   `GET/POST /capacity/holds`, `POST /capacity/holds/:id/release` (gerekçe zorunlu).

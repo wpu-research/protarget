@@ -56,14 +56,16 @@ async function addonBody(addon: AddonState, search: Record<string, string | stri
     const venueId = typeof search.venueId === 'string' && uuidPattern.test(search.venueId) ? search.venueId : undefined;
     const query = new URLSearchParams({ from, days: String(days), page: String(pageNumber(search.page)), pageSize: '50' });
     if (venueId) query.set('venueId', venueId);
+    const allHolds = search.holds === 'all';
+    const holdPage = pageNumber(search.holdPage);
     const [report, holds, venues, screens] = await Promise.all([
       serverApi<CapacityReport>(`/capacity?${query}`),
-      serverApi<PageResult<ScreenHoldView>>('/capacity/holds?pageSize=50'),
+      serverApi<PageResult<ScreenHoldView>>(`/capacity/holds?pageSize=50&page=${holdPage}${allHolds ? '' : '&activeOnly=true'}`),
       listAllCapped<InventoryVenue>('/venues?active=true'),
-      serverApi<PageResult<InventoryScreen>>('/screens?active=true&pageSize=100'),
+      listAllCapped<InventoryScreen>('/screens?active=true'),
     ]);
     return <><AddonDetail addon={addon} compact />
-      <CapacityView report={report} holds={holds} filters={{ from, days, venueId }}
+      <CapacityView report={report} holds={holds} filters={{ from, days, venueId, allHolds }}
         venues={venues.items.map(venue => ({ id: venue.id, label: venue.name }))}
         screens={screens.items.map(screen => ({ id: screen.id, label: `${screen.screenId} · ${screen.name}` }))} /></>;
   }

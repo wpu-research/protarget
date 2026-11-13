@@ -771,5 +771,7 @@
   "capacity.releaseReason": "Serbest bırakma gerekçesi (en az 3 karakter):",
   "capacity.holdState.ACTIVE": "Aktif",
   "capacity.holdState.EXPIRED": "Süresi doldu",
-  "capacity.holdState.RELEASED": "Serbest"
+  "capacity.holdState.RELEASED": "Serbest",
+  "capacity.showActiveHolds": "Yalnız geçerli hold'lar",
+  "capacity.showAllHolds": "Tüm hold'ları göster (serbest/süresi dolmuş dahil)"
 }

@@ -1,5 +1,5 @@
 import { screenCapacity, slotsPerLoop, type CapacityBooking } from '../src/modules/capacity/capacity-calc';
-import { presentHold } from '../src/modules/capacity/capacity.service';
+import { presentHold, screenSchedule } from '../src/modules/capacity/capacity.service';
 
 const monday = new Date('2026-11-16T00:00:00Z'); // a Monday
 const booking = (code: string, over: Partial<CapacityBooking> = {}): CapacityBooking => ({
@@ -62,8 +62,16 @@ describe('Capacity add-on', () => {
     const now = new Date('2026-11-16T12:00:00Z');
     const base = { id: 'h', screenId: 's', label: 'L', startAt: monday, endAt: now, slots: 1, note: null, createdAt: monday,
       releaseReason: null, screen: { screenId: 'SCR-1' }, createdBy: { id: 'u', name: 'Admin' } };
-    expect(presentHold({ ...base, expiresAt: new Date('2026-11-17T00:00:00Z'), releasedAt: null }, now).state).toBe('ACTIVE');
+    expect(presentHold({ ...base, endAt: new Date('2026-11-18T00:00:00Z'), expiresAt: new Date('2026-11-17T00:00:00Z'), releasedAt: null }, now).state).toBe('ACTIVE');
+    // Window already over: no longer counts, even before expiry.
+    expect(presentHold({ ...base, expiresAt: new Date('2026-11-17T00:00:00Z'), releasedAt: null }, now).state).toBe('EXPIRED');
     expect(presentHold({ ...base, expiresAt: now, releasedAt: null }, now).state).toBe('EXPIRED');
     expect(presentHold({ ...base, expiresAt: new Date('2026-11-17T00:00:00Z'), releasedAt: now, releaseReason: 'done' }, now).state).toBe('RELEASED');
+  });
+  it('prefers screen-specific dayparts over campaign-wide ones', () => {
+    const rows = [{ screenId: null, dayOfWeek: 1, startTime: '09:00', endTime: '10:00' },
+      { screenId: 's1', dayOfWeek: 2, startTime: '11:00', endTime: '12:00' }];
+    expect(screenSchedule(rows, 's1')).toEqual([{ dayOfWeek: 2, startTime: '11:00', endTime: '12:00' }]);
+    expect(screenSchedule(rows, 's2')).toEqual([{ dayOfWeek: 1, startTime: '09:00', endTime: '10:00' }]);
   });
 });

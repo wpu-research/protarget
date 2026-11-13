@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsISO8601, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsISO8601, IsString, IsUUID, Length, Matches, Max, Min } from 'class-validator';
 import { CAPACITY_MAX_DAYS } from '@protarget/shared';
-import { LowerUuid, Nullable, Optional, TrimText } from '../../common/inventory-validation';
+import { BooleanQuery, LowerUuid, Nullable, Optional, TrimText } from '../../common/inventory-validation';
 import { PaginationDto } from '../../common/pagination.dto';
 
 const utc = /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d{1,3})?Z$/;
@@ -21,6 +21,8 @@ export class CapacityQueryDto extends PaginationDto {
 
 export class HoldQueryDto extends PaginationDto {
   @ApiPropertyOptional({ format: 'uuid' }) @Optional() @LowerUuid() @IsUUID() screenId?: string;
+  @ApiPropertyOptional({ type: Boolean, default: false, description: 'Only holds that still count' })
+  @BooleanQuery() @IsBoolean() activeOnly = false;
 }
 
 export class CreateHoldDto {
