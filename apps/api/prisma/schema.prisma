@@ -224,6 +224,8 @@ model User {
   revokedCreatives    Creative[]           @relation("CreativeRevoker")
   cmsOperations       CampaignCmsOperation[]
   screenHolds         ScreenHold[]
+  deliveryImports     DeliveryImportBatch[]
+  voidedDeliveries    DeliveryRecord[]      @relation("DeliveryVoidedBy")
   auditLogs           AuditLog[]
   campaignPermissions CampaignPermission[]
 
@@ -381,6 +383,7 @@ model Screen {
   dailyDelivery     DailyCampaignScreenDelivery[]
   cmsOperations     CampaignCmsOperation[]
   holds             ScreenHold[]
+  deliveryRecords   DeliveryRecord[]
 
   @@index([venueId])
   @@map("screens")
@@ -502,6 +505,7 @@ model Creative {
   replaces          Creative?          @relation("CreativeVersions", fields: [replacesId], references: [id])
   replacedBy        Creative[]         @relation("CreativeVersions")
   campaignCreatives CampaignCreative[]
+  deliveryRecords   DeliveryRecord[]
 
   @@index([advertiserId])
   @@map("creatives")
@@ -562,6 +566,7 @@ model Campaign {
   permissions    CampaignPermission[]
   dailyDelivery  DailyCampaignScreenDelivery[]
   cmsOperations  CampaignCmsOperation[]
+  deliveryRecords DeliveryRecord[]
 
   @@index([advertiserId])
   @@index([agencyId])
@@ -899,4 +904,63 @@ model ScreenHold {
 
   @@index([screenId, startAt])
   @@map("screen_holds")
+}
+
+/// Ek özellik "oynatma kaydı": içe aktarılan teslimatın kaynağı. Kaynaklar raporda toplanmaz.
+enum DeliverySource {
+  CMS_VERIFIED
+  OPERATOR_DECLARED
+  DECLARED_IMPRESSION
+}
+
+/// Bir CSV içe aktarımı. Aynı kaynakla aynı dosya (sha256) ikinci kez alınmaz.
+model DeliveryImportBatch {
+  id             String         @id @default(uuid()) @db.Uuid
+  source         DeliverySource
+  filename       String
+  fileSha256     String
+  note           String?
+  rowCount       Int
+  acceptedCount  Int
+  duplicateCount Int
+  createdById    String         @db.Uuid
+  createdAt      DateTime       @default(now()) @db.Timestamptz
+
+  createdBy User             @relation(fields: [createdById], references: [id])
+  records   DeliveryRecord[]
+
+  @@unique([source, fileSha256])
+  @@map("delivery_import_batches")
+}
+
+/// İçe aktarılan teslimat satırı. Silinmez; düzeltme `voidedAt` + gerekçe ile.
+/// `dedupeKey` iptal edilmemiş satırlar arasında tekildir (kısmi unique index, migration'da).
+model DeliveryRecord {
+  id              String         @id @default(uuid()) @db.Uuid
+  batchId         String         @db.Uuid
+  source          DeliverySource
+  campaignId      String         @db.Uuid
+  screenId        String         @db.Uuid
+  creativeId      String?        @db.Uuid
+  playedAt        DateTime       @db.Timestamptz
+  count           Int
+  impressions     Decimal?       @db.Decimal(18, 4)
+  durationSeconds Decimal?       @db.Decimal(8, 3)
+  externalId      String?
+  dedupeKey       String
+  createdAt       DateTime       @default(now()) @db.Timestamptz
+  voidedAt        DateTime?      @db.Timestamptz
+  voidReason      String?
+  voidedById      String?        @db.Uuid
+
+  batch    DeliveryImportBatch @relation(fields: [batchId], references: [id])
+  campaign Campaign            @relation(fields: [campaignId], references: [id])
+  screen   Screen              @relation(fields: [screenId], references: [id])
+  creative Creative?           @relation(fields: [creativeId], references: [id])
+  voidedBy User?               @relation("DeliveryVoidedBy", fields: [voidedById], references: [id])
+
+  @@index([campaignId, playedAt])
+  @@index([screenId, playedAt])
+  @@index([dedupeKey])
+  @@map("delivery_records")
 }

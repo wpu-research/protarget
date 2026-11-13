@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView, type DeliveryBatchView, type DeliveryRecordView,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -16,6 +16,7 @@ import { FleetView } from '@/components/fleet/FleetView';
 import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory, type ScreenAd } from '@/components/Inventory';
 import { AddonList, AddonDetail } from '@/components/Addons';
 import { CapacityView } from '@/components/Capacity';
+import { DeliveryView } from '@/components/Delivery';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -68,6 +69,25 @@ async function addonBody(addon: AddonState, search: Record<string, string | stri
       <CapacityView report={report} holds={holds} filters={{ from, days, venueId, allHolds }}
         venues={venues.items.map(venue => ({ id: venue.id, label: venue.name }))}
         screens={screens.items.map(screen => ({ id: screen.id, label: `${screen.screenId} · ${screen.name}` }))} /></>;
+  }
+  if (addon.key === 'proofOfPlay' && addon.enabled) {
+    const recordPage = pageNumber(search.page), batchPage = pageNumber(search.batchPage);
+    const showVoided = search.voided === 'true';
+    const [batches, records] = await Promise.all([
+      serverApi<PageResult<DeliveryBatchView>>(`/delivery/imports?pageSize=20&page=${batchPage}`),
+      serverApi<PageResult<DeliveryRecordView>>(`/delivery/records?pageSize=50&page=${recordPage}${showVoided ? '&includeVoided=true' : ''}`),
+    ]);
+    const link = (changes: Record<string, string | number | undefined>) => {
+      const params = new URLSearchParams({ page: String(recordPage), batchPage: String(batchPage) });
+      if (showVoided) params.set('voided', 'true');
+      for (const [key, value] of Object.entries(changes)) { if (value === undefined) params.delete(key); else params.set(key, String(value)); }
+      return `/admin/addons/proofOfPlay?${params}`;
+    };
+    return <><AddonDetail addon={addon} compact />
+      <DeliveryView batches={batches} records={records} href={{ showVoided,
+        recordsPrev: link({ page: recordPage - 1 }), recordsNext: link({ page: recordPage + 1 }),
+        batchesPrev: link({ batchPage: batchPage - 1 }), batchesNext: link({ batchPage: batchPage + 1 }),
+        voided: link({ voided: showVoided ? undefined : 'true', page: 1 }) }} /></>;
   }
   return <AddonDetail key={addon.key} addon={addon} />;
 }

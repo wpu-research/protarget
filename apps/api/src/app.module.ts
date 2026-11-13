@@ -25,6 +25,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { OpsModule } from './modules/ops/ops.module';
 import { AddonsModule } from './modules/addons/addons.module';
 import { CapacityModule } from './modules/capacity/capacity.module';
+import { DeliveryModule } from './modules/delivery/delivery.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { CapacityModule } from './modules/capacity/capacity.module';
     OpsModule,
     AddonsModule,
     CapacityModule,
+    DeliveryModule,
   ],
 })
 export class AppModule {}
