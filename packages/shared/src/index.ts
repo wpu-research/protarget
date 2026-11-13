@@ -9,3 +9,4 @@ export * from './fleet';
 export * from './addons';
 export * from './capacity';
 export * from './delivery';
+export * from './reporting';

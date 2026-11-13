@@ -30,7 +30,7 @@ eklendi. Kullanıcı kararı (13 Kasım 2026): bayrak arkasında kapalı; admin
 | 6 | Kitle ölçümü | Yer tutucu | Açılamaz; sensör veya veri sözleşmesi gerekir |
 | 7 | Dinamik içerik / DCO | Yer tutucu | Açılamaz; player + veri sağlayıcı gerekir |
 | 8 | Alıcı kataloğu | Çalışır, kapalı (rezervasyon talebi yer tutucu) | Story 6 |
-| 9 | Teslimat raporları | Çalışır, kapalı | Story 4 |
+| 9 | Teslimat raporları | Çalışır, kapalı | Story 4 — uygulandı |
 
 Yer tutucu sayfalar yalnız açıklama ve önkoşul listesi gösterir; sahte veri,
 istatistik veya bağlantı durumu göstermez.
@@ -80,3 +80,23 @@ istatistik veya bağlantı durumu göstermez.
 - Migration: `20261113000100_addon_delivery_import` (iki tablo, kısmi unique index,
   CHECK kısıtları, append-only tetikleyiciler). Yerel Postgres olmadığı için migration
   ve tetikleyiciler **gerçek veritabanında çalıştırılmadı**.
+
+## Teslimat raporları (story addon-reporting)
+
+- Admin: `GET /api/v1/reports/campaigns/:id/delivery`; ekran: Ek özellikler →
+  Teslimat raporları (eski `/admin/reporting` menüsü buraya yönlenir; bayrak kapalıyken
+  yalnız pasif açıklama görünür).
+- Portal (ajans/reklamveren, salt okunur): `GET /portal/reports/campaigns` ve
+  `GET /portal/reports/campaigns/:id/delivery`; ekran `/portal/reports`. Kurum yüklemi
+  sorgunun parçasıdır (reklamveren, ajans veya `campaign_permissions`); DRAFT ve
+  READY_FOR_REVIEW görünmez. Görünmeyen kampanya 404 + güvenlik audit'i
+  (`UNAUTHORIZED_PORTAL_ACCESS`). Oturum aynı transaction içinde yeniden doğrulanır.
+- İçerik: kaynak başına (CMS doğrulanmış / operatör beyanı / beyan gösterim) oynatma
+  veya beyan gösterim, tahmini gösterim (oynatma × o anda geçerli **onaylı tam-ekran**
+  çarpanı; çarpanı olmayan oynatma "kısmi" olarak sayılır), hedefe göre teslimat %
+  ve pacing (teslimat % / geçen uçuş %). Kaynaklar **toplanmaz**. Hedef yoksa ya da
+  tahmin kısmiyse gösterim teslimat %'si `null` ("Hesaplanamadı"). Ekran ve UTC gün
+  kırılımı; iptal edilmiş satırlar hariç ve sayısı gösterilir.
+- Finansal alan yoktur (fiyat, bütçe, spend raporda ve portal yanıtında hiç yer almaz).
+- CSV dışa aktarma istemcide aynı JSON'dan üretilir; boş hücre = bilinmiyor (0 değil).
+- Ekran görüntüsü/video kanıtı yok (MVP kararı: sonraya).

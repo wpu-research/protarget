@@ -9,3 +9,4 @@ development_status:
   # Add-on flags + passive placeholders (Broadsign gap list); all modules off by default.
   addon-capacity: done
   addon-delivery-import: done
+  addon-reporting: review

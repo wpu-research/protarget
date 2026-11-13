@@ -48,3 +48,12 @@ export async function serverApi<T>(path: string, notFoundOnMissing = false): Pro
 export function pageNumber(raw: string | string[] | undefined) {
   return typeof raw === 'string' && /^[1-9]\d{0,5}$/.test(raw) ? Number(raw) : 1;
 }
+/** For add-on endpoints: null when the module is passive (404 ADDON_DISABLED) or the record is not visible. */
+export async function serverApiOptional<T>(path: string): Promise<T | null> {
+  const response = await request(path);
+  if (response.status === 401) redirect('/renew');
+  if (response.status === 403) redirect('/');
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error('Service unavailable');
+  return response.json();
+}

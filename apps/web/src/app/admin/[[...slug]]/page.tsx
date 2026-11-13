@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView, type DeliveryBatchView, type DeliveryRecordView,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey, type CapacityReport, type ScreenHoldView, type DeliveryBatchView, type DeliveryRecordView, type CampaignDeliveryReport,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -17,6 +17,8 @@ import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory, type Scr
 import { AddonList, AddonDetail } from '@/components/Addons';
 import { CapacityView } from '@/components/Capacity';
 import { DeliveryView } from '@/components/Delivery';
+import { DeliveryReportView } from '@/components/Report';
+import { ReportPicker } from '@/components/ReportPicker';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -89,6 +91,15 @@ async function addonBody(addon: AddonState, search: Record<string, string | stri
         batchesPrev: link({ batchPage: batchPage - 1 }), batchesNext: link({ batchPage: batchPage + 1 }),
         voided: link({ voided: showVoided ? undefined : 'true', page: 1 }) }} /></>;
   }
+  if (addon.key === 'reporting' && addon.enabled) {
+    const campaigns = await serverApi<CampaignPage>('/campaigns?page=1&pageSize=100');
+    const campaignId = typeof search.campaignId === 'string' && uuidPattern.test(search.campaignId) ? search.campaignId : undefined;
+    const report = campaignId ? await serverApi<CampaignDeliveryReport>(`/reports/campaigns/${campaignId}/delivery`, true) : undefined;
+    return <><AddonDetail addon={addon} compact />
+      <ReportPicker campaigns={campaigns.items.filter(c => c.status !== 'DRAFT').map(c => ({ id: c.id, label: `${c.code} · ${c.name}` }))}
+        selected={campaignId} action="/admin/addons/reporting" />
+      {report && <DeliveryReportView report={report} />}</>;
+  }
   return <AddonDetail key={addon.key} addon={addon} />;
 }
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -102,6 +113,7 @@ export default async function AdminPage({ params, searchParams }: {
   const search = await searchParams;
   const page = pageNumber(search.page);
   if (path === '/admin/inventory') redirect('/admin/inventory/venues');
+  if (path === '/admin/reporting') redirect('/admin/addons/reporting');
   if (slug[0] === 'addons') {
     if (slug.length > 2 || (slug[1] && !isAddonKey(slug[1]))) notFound();
     const addons = await serverApi<AddonState[]>('/addons');

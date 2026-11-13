@@ -32,7 +32,7 @@ export const ADDON_MODULES: readonly AddonDefinition[] = [
   { key: 'audience', area: 6, kind: 'PLACEHOLDER', ready: false, prerequisites: ['audienceSource'] },
   { key: 'dynamicContent', area: 7, kind: 'PLACEHOLDER', ready: false, prerequisites: ['player', 'dataProvider'] },
   { key: 'buyerCatalog', area: 8, kind: 'WORKING', ready: false, prerequisites: [] },
-  { key: 'reporting', area: 9, kind: 'WORKING', ready: false, prerequisites: ['deliveryData'] },
+  { key: 'reporting', area: 9, kind: 'WORKING', ready: true, prerequisites: ['deliveryData'] },
 ];
 
 export const addonSettingKey = (key: AddonKey) => `addon.${key}.enabled`;
