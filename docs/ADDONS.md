@@ -60,17 +60,20 @@ istatistik veya bağlantı durumu göstermez.
   (operatör beyanı, oynatma), `DECLARED_IMPRESSION` (doğrudan beyan edilen gösterim).
   Ayrı etiketli saklanır, raporda **toplanmaz**. CMS "yüklendi" kaydı kanıt değildir.
 - `POST /api/v1/delivery/imports/preview` ve `POST /delivery/imports` — gövde
-  `{ source, filename, csv, note? }`, CSV ≤ 90.000 karakter / 2.000 satır (varsayılan
-  100 KB JSON limiti değişmedi). Başlık zorunlu; sütunlar: `campaign_code, screen_code,
+  `{ source, filename, csv, note? }`, CSV ≤ 60.000 bayt (UTF-8) / 2.000 satır (varsayılan
+  100 KB JSON limiti değişmedi; kaçışlara pay). Başlık zorunlu; sütunlar: `campaign_code, screen_code,
   played_at (UTC Z), count, impressions, creative_code, duration_seconds, external_id`.
   Genel biçimdir; **gerçek CMS dışa aktarım biçimi doğrulanmadı**.
 - Satır kuralları: kampanya kodu var ve en az bir kez yayına alınmış (`launchedAt`),
   ekran ve (varsa) kreatif kampanyada, `played_at` uçuş içinde ve gelecekte değil.
-  Gösterim yalnız `DECLARED_IMPRESSION`'da ve orada `count` girilemez.
+  Gösterim yalnız `DECLARED_IMPRESSION`'da ve orada `count` girilemez (saklanan değer `null`;
+  beyan gösterim oynatma sayılmaz). Tırnak kullanımı katıdır; hata satır numaraları fiziksel satırdır.
 - Hepsi-ya-hiç: tek hatalı satır varsa hiçbir şey yazılmaz (önizleme hataları satır
-  numarasıyla listeler). Aynı kaynakla aynı dosya (sha256) ikinci kez alınmaz (409).
+  numarasıyla listeler). Aynı kaynakla aynı dosya (BOM/satır sonu normalize sha256) ikinci
+  kez alınmaz (409).
 - Tekilleştirme: kaynak + kampanya + ekran + kreatif + saniye + external_id. Dosya içi
-  ya da daha önce alınmış (iptal edilmemiş) satır yazılmaz, "mükerrer" sayılır. Farklı
+  ya da daha önce alınmış (iptal edilmemiş) aynı değerli satır yazılmaz, "mükerrer" sayılır;
+  aynı anahtar farklı sayı/süre/gösterimle gelirse `CONFLICTING_DUPLICATE` hatasıdır. Farklı
   kaynaktan gelen aynı oynatma ayrı tutulur; raporda yan yana gösterilir.
 - Düzeltme: `POST /delivery/records/:id/void` (gerekçe zorunlu). Satır silinmez;
   DB tetikleyicisi silmeyi ve iptal dışı güncellemeyi engeller. Her işlem audit'li.

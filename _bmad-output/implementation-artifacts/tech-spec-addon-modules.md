@@ -98,3 +98,19 @@ Düzeltme diff'i yeniden incelendi (ana oturum): 0 patch, 0 intent_gap. Build, t
 ## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-capacity) → ✅ Onaylandı
 
 Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap (7 numara bilinçli erteleme). Build, typecheck, lint, 155 unit test geçti.
+
+## Code Review Findings — Tur 1 (13 Kasım 2026, story addon-delivery-import) → Düzeltildi
+
+0 high, 2 medium, 6 low (ayrı alt ajan, salt okunur; i18n eşliği temiz).
+1. medium — boş satır/çok satırlı alan varken hata satır numaraları kayıyordu → `splitCsv` fiziksel başlangıç satırını döndürür.
+2. medium — aynı anahtarlı ama farklı sayı/süreli satırlar sessizce "mükerrer" sayılıyordu → `CONFLICTING_DUPLICATE` hatası; yalnız aynı değerli satır mükerrer.
+3. low — creative/user FK `ON DELETE SET NULL` append-only tetikleyiciyle çakışıyordu → `RESTRICT`.
+4. low — beyan gösterim satırı `count = 1` saklıyordu → `count` null, CHECK kaynakla eşli.
+5. low — BOM/CRLF farkı dosya-özeti kontrolünü aşıyordu → normalize edilip hash'lenir.
+6. low — karakter limiti 100 KB gövde limitini aşabiliyordu → 60.000 bayt (UTF-8), sunucu ve istemcide.
+7. low — gevşek tırnak (`"abc"def`) kabul ediliyordu → katı; MALFORMED_CSV.
+8. low — özet en fazla 100 hata gösteriyordu → `errorCount`.
+
+## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-delivery-import) → ✅ Onaylandı
+
+Düzeltme diff'i ana oturumda incelendi: 0 patch, 0 intent_gap. Build, typecheck, lint, 164 unit test geçti. Migration/tetikleyiciler gerçek Postgres'te çalıştırılmadı (erişim yok).

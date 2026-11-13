@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { DELIVERY_MAX_CSV_BYTES } from '@protarget/shared';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import type {
@@ -28,11 +29,17 @@ const MAX_REPORTED_ERRORS = 100;
  * Checks parsed lines against bookings and removes duplicates (same file or already imported, not voided).
  * Pure apart from the inputs; the service supplies `campaigns` and `existingKeys`.
  */
+/** What makes two rows with the same key the same delivery; a mismatch is a conflict, not a duplicate. */
+export interface DeliveryFingerprint { count: number | null; impressions: string | null; durationSeconds: string | null }
+const sameDelivery = (a: DeliveryFingerprint, b: DeliveryFingerprint) => a.count === b.count &&
+  decimalEq(a.impressions, b.impressions) && decimalEq(a.durationSeconds, b.durationSeconds);
+const decimalEq = (a: string | null, b: string | null) => a === b || (a !== null && b !== null && Number(a) === Number(b));
+
 export function resolveDeliveryRows(source: DeliverySource, rows: ParsedDeliveryRow[], campaigns: Map<string, DeliveryCampaignRef>,
-  existingKeys: Set<string>): { accepted: ResolvedDeliveryRow[]; duplicates: number; errors: DeliveryRowErrorView[] } {
+  existing: Map<string, DeliveryFingerprint>): { accepted: ResolvedDeliveryRow[]; duplicates: number; errors: DeliveryRowErrorView[] } {
   const accepted: ResolvedDeliveryRow[] = [];
   const errors: DeliveryRowErrorView[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, DeliveryFingerprint>();
   let duplicates = 0;
   for (const row of rows) {
     const campaign = campaigns.get(row.campaignCode);
@@ -50,8 +57,14 @@ export function resolveDeliveryRows(source: DeliverySource, rows: ParsedDelivery
       errors.push({ line: row.line, code: 'OUTSIDE_FLIGHT', column: 'played_at' }); continue;
     }
     const dedupeKey = deliveryKey(source, { campaignId: campaign.id, screenId, creativeId }, row.playedAt, row.externalId);
-    if (seen.has(dedupeKey) || existingKeys.has(dedupeKey)) { duplicates++; continue; }
-    seen.add(dedupeKey);
+    const earlier = seen.get(dedupeKey) ?? existing.get(dedupeKey);
+    if (earlier) {
+      // Same key but different figures: an aggregated row or a correction; never drop it silently.
+      if (sameDelivery(earlier, row)) duplicates++;
+      else errors.push({ line: row.line, code: 'CONFLICTING_DUPLICATE' });
+      continue;
+    }
+    seen.set(dedupeKey, row);
     accepted.push({ ...row, campaignId: campaign.id, screenId, creativeId, dedupeKey });
   }
   return { accepted, duplicates, errors };
@@ -103,7 +116,9 @@ export class DeliveryService {
   }
 
   import(actor: Principal, dto: DeliveryImportDto, now = new Date()): Promise<DeliveryBatchView> {
-    const fileSha256 = createHash('sha256').update(dto.csv).digest('hex');
+    // Same content with another BOM/line-ending style is the same file.
+    const normalized = dto.csv.replace(/^\ufeff/, '').replace(/\r\n?/g, '\n').replace(/\n+$/, '');
+    const fileSha256 = createHash('sha256').update(normalized).digest('hex');
     return inventoryTransaction(this.db, async tx => {
       await this.guard(tx, actor);
       if (await tx.deliveryImportBatch.findUnique({ where: { source_fileSha256: { source: dto.source, fileSha256 } }, select: { id: true } })) {
@@ -178,6 +193,7 @@ export class DeliveryService {
   }
 
   private async evaluate(tx: Prisma.TransactionClient, dto: DeliveryImportDto, now: Date) {
+    if (Buffer.byteLength(dto.csv, 'utf8') > DELIVERY_MAX_CSV_BYTES) throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'The CSV is too large');
     const parsed = parseDeliveryCsv(dto.csv, dto.source, now);
     const codes = [...new Set(parsed.rows.map(row => row.campaignCode))];
     const found = codes.length ? await tx.campaign.findMany({ where: { code: { in: codes }, deletedAt: null }, select: {
@@ -189,16 +205,20 @@ export class DeliveryService {
       screens: new Map(c.screens.map(s => [s.screen.screenId, s.screenId])),
       creatives: new Map(c.creatives.map(({ creative }) => [creative.code, creative.id])),
     }]));
-    const draft = resolveDeliveryRows(dto.source, parsed.rows, campaigns, new Set());
+    const draft = resolveDeliveryRows(dto.source, parsed.rows, campaigns, new Map());
     const existing = draft.accepted.length ? await tx.deliveryRecord.findMany({
-      where: { dedupeKey: { in: draft.accepted.map(row => row.dedupeKey) }, voidedAt: null }, select: { dedupeKey: true } }) : [];
+      where: { dedupeKey: { in: draft.accepted.map(row => row.dedupeKey) }, voidedAt: null },
+      select: { dedupeKey: true, count: true, impressions: true, durationSeconds: true } }) : [];
     const resolved = existing.length
-      ? resolveDeliveryRows(dto.source, parsed.rows, campaigns, new Set(existing.map(row => row.dedupeKey))) : draft;
+      ? resolveDeliveryRows(dto.source, parsed.rows, campaigns, new Map(existing.map(row => [row.dedupeKey, {
+        count: row.count, impressions: row.impressions?.toString() ?? null, durationSeconds: row.durationSeconds?.toString() ?? null }])))
+      : draft;
     const errors = [...parsed.errors, ...resolved.errors].sort((a, b) => a.line - b.line);
     const preview: DeliveryPreview = {
       source: dto.source, rowCount: parsed.lineCount,
-      accepted: resolved.accepted.length, duplicates: resolved.duplicates, errors: errors.slice(0, MAX_REPORTED_ERRORS),
-      playouts: dto.source === 'DECLARED_IMPRESSION' ? null : resolved.accepted.reduce((sum, row) => sum + row.count, 0),
+      accepted: resolved.accepted.length, duplicates: resolved.duplicates,
+      errors: errors.slice(0, MAX_REPORTED_ERRORS), errorCount: errors.length,
+      playouts: dto.source === 'DECLARED_IMPRESSION' ? null : resolved.accepted.reduce((sum, row) => sum + (row.count ?? 0), 0),
       impressions: dto.source === 'DECLARED_IMPRESSION' ? sumDecimals(resolved.accepted.map(row => row.impressions!)) : null,
     };
     return { preview, accepted: resolved.accepted, errorCount: errors.length };

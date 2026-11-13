@@ -789,7 +789,7 @@
   "delivery.note": "Note",
   "delivery.preview": "Preview",
   "delivery.commit": "Import",
-  "delivery.tooLarge": "The file is too large (max ~90 KB). Split it or aggregate rows with the count column.",
+  "delivery.tooLarge": "The file is too large (max 60 KB). Split it or aggregate rows with the count column.",
   "delivery.noFile": "Choose a file or paste text first.",
   "delivery.fixLines": "The file has invalid lines; fix the lines listed in the preview.",
   "delivery.imported": "Imported.",
@@ -830,5 +830,6 @@
   "delivery.impressionValue": "{value} impressions (declared)",
   "delivery.voided": "Voided",
   "delivery.void": "Void",
-  "delivery.voidReason": "Reason for voiding (at least 3 characters). The row is kept but leaves the reports:"
+  "delivery.voidReason": "Reason for voiding (at least 3 characters). The row is kept but leaves the reports:",
+  "delivery.rowError.CONFLICTING_DUPLICATE": "The same playout already arrived with different figures (count/duration/impressions). Give an external_id if it is a separate row; void the old row if it is a correction."
 }

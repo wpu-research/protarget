@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { MessageKey } from '@protarget/i18n';
 import {
-  DELIVERY_CSV_COLUMNS, DELIVERY_MAX_CSV_CHARS, DELIVERY_SOURCES,
+  DELIVERY_CSV_COLUMNS, DELIVERY_MAX_CSV_BYTES, DELIVERY_SOURCES,
   type DeliveryBatchView, type DeliveryPreview, type DeliveryRecordView, type DeliverySource, type PageResult,
 } from '@protarget/shared';
 import { api, RequestError } from '@/lib/client';
@@ -45,13 +45,13 @@ function ImportForm() {
     const file = event.target.files?.[0];
     reset();
     if (!file) return;
-    if (file.size > DELIVERY_MAX_CSV_CHARS * 4) { setError('delivery.tooLarge'); return; }
+    if (file.size > DELIVERY_MAX_CSV_BYTES) { setError('delivery.tooLarge'); return; }
     const content = await file.text();
-    if (content.length > DELIVERY_MAX_CSV_CHARS) { setError('delivery.tooLarge'); return; }
     setFilename(file.name.slice(0, 200)); setCsv(content);
   };
   const run = async (commit: boolean) => {
     if (!csv.trim()) { setError('delivery.noFile'); return; }
+    if (new TextEncoder().encode(csv).length > DELIVERY_MAX_CSV_BYTES) { setError('delivery.tooLarge'); return; }
     setBusy(true); setError(null);
     try {
       if (!commit) { setPreview(await api<DeliveryPreview>('/delivery/imports/preview', { method: 'POST', body: body() })); return; }
@@ -70,7 +70,7 @@ function ImportForm() {
       <label>{text('delivery.sourceLabel')}<select value={source} onChange={event => { setSource(event.target.value as DeliverySource); reset(); }}>
         {DELIVERY_SOURCES.map(item => <option key={item} value={item}>{text(sourceKey(item))}</option>)}</select></label>
       <label>{text('delivery.file')}<input type="file" accept=".csv,text/csv" onChange={pick} /></label>
-      <label className="full">{text('delivery.paste')}<textarea rows={6} value={csv} maxLength={DELIVERY_MAX_CSV_CHARS}
+      <label className="full">{text('delivery.paste')}<textarea rows={6} value={csv} maxLength={DELIVERY_MAX_CSV_BYTES}
         onChange={event => { setCsv(event.target.value); reset(); }} /></label>
       <label className="full">{text('delivery.note')}<input value={note} maxLength={1000} onChange={event => setNote(event.target.value)} /></label>
       <p className="hint full">{text(`delivery.sourceHint.${source}` as MessageKey)}</p>
@@ -83,7 +83,7 @@ function ImportForm() {
     {error && <p className="error" role="alert">{text(error)}</p>}
     {done && <p className="success" role="status">{text('delivery.imported')}</p>}
     {preview && <div role="status" className="delivery-preview">
-      <p><strong>{text('delivery.previewSummary', { rows: preview.rowCount, accepted: preview.accepted, duplicates: preview.duplicates, errors: preview.errors.length })}</strong></p>
+      <p><strong>{text('delivery.previewSummary', { rows: preview.rowCount, accepted: preview.accepted, duplicates: preview.duplicates, errors: preview.errorCount })}</strong></p>
       <p className="muted">{preview.playouts !== null && text('delivery.previewPlayouts', { value: preview.playouts })}
         {preview.impressions !== null && text('delivery.previewImpressions', { value: preview.impressions })}</p>
       {preview.errors.length > 0 && <ul className="delivery-errors">{preview.errors.map((item, index) =>
@@ -150,7 +150,7 @@ function Records({ records, prev, next, voided, showVoided }: {
           <td>{record.screen.code}</td>
           <td>{record.campaign.code}{record.creative && <small>{record.creative.code}</small>}</td>
           <td>{record.impressions !== null ? text('delivery.impressionValue', { value: record.impressions })
-            : text('delivery.playoutValue', { value: record.count })}{record.durationSeconds && <small>{record.durationSeconds}s</small>}</td>
+            : text('delivery.playoutValue', { value: record.count ?? 0 })}{record.durationSeconds && <small>{record.durationSeconds}s</small>}</td>
           <td>{!record.voidedAt && <button type="button" className="button quiet" disabled={busy} onClick={() => cancel(record)}>{text('delivery.void')}</button>}</td>
         </tr>)}</tbody></table></div>}
     <PageLinks data={records} prev={prev} next={next} />

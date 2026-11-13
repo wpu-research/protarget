@@ -10,8 +10,13 @@ const campaign = (over: Partial<DeliveryCampaignRef> = {}): DeliveryCampaignRef 
 
 describe('Delivery import add-on', () => {
   it('splits quoted CSV with escaped quotes, CRLF and a BOM', () => {
-    expect(splitCsv('﻿a,"b,c","d""e"\r\n1,2,3\n\n')).toEqual([['a', 'b,c', 'd"e'], ['1', '2', '3']]);
+    expect(splitCsv('\ufeffa,"b,c","d""e"\r\n1,2,3\n\n')).toEqual([{ line: 1, cells: ['a', 'b,c', 'd"e'] }, { line: 2, cells: ['1', '2', '3'] }]);
     expect(() => splitCsv('a,"b')).toThrow();
+  });
+  it('rejects text after a closing quote and stray quotes, and keeps physical line numbers', () => {
+    expect(() => splitCsv('"abc"def,1')).toThrow();
+    expect(() => splitCsv('ab"c,1')).toThrow();
+    expect(splitCsv('\nh1,h2\n\n"multi\nline",x\ny,z').map(r => r.line)).toEqual([2, 4, 6]);
   });
   it('requires a known header and rejects unknown or missing columns', () => {
     expect(parseDeliveryCsv('campaign_code,screen_code\nA,B', 'CMS_VERIFIED', now).errors).toEqual([{ line: 1, code: 'MISSING_COLUMN', column: 'played_at' }]);
@@ -39,7 +44,7 @@ describe('Delivery import add-on', () => {
   it('keeps impressions to the declared-impression source and rejects a playout count there', () => {
     const csv = 'campaign_code,screen_code,played_at,impressions,count\nA,SCR-1,2026-11-10T10:00:00Z,12.5,\nA,SCR-1,2026-11-10T11:00:00Z,3,2';
     const declared = parseDeliveryCsv(csv, 'DECLARED_IMPRESSION', now);
-    expect(declared.rows[0].impressions).toBe('12.5');
+    expect(declared.rows[0]).toMatchObject({ impressions: '12.5', count: null });
     expect(declared.errors).toEqual([{ line: 3, code: 'COUNT_NOT_ALLOWED', column: 'count' }]);
     expect(parseDeliveryCsv(csv, 'OPERATOR_DECLARED', now).errors.map(e => e.code)).toContain('IMPRESSIONS_NOT_ALLOWED');
   });
@@ -56,12 +61,20 @@ describe('Delivery import add-on', () => {
     const parsed = parseDeliveryCsv(csv, 'CMS_VERIFIED', now);
     const campaigns = new Map([['CMP-1', campaign()], ['CMP-2', campaign({ id: 'c2', launchedAt: null })]]);
     const existing = deliveryKey('CMS_VERIFIED', { campaignId: 'c1', screenId: 's1', creativeId: null }, new Date('2026-11-11T10:00:00Z'), null);
-    const result = resolveDeliveryRows('CMS_VERIFIED', parsed.rows, campaigns, new Set([existing]));
+    const result = resolveDeliveryRows('CMS_VERIFIED', parsed.rows, campaigns,
+      new Map([[existing, { count: 1, impressions: null, durationSeconds: null }]]));
     expect(result.accepted.map(r => r.line)).toEqual([2]);
     expect(result.duplicates).toBe(2);
     expect(result.errors.map(e => [e.line, e.code])).toEqual([
       [4, 'SCREEN_NOT_IN_CAMPAIGN'], [5, 'OUTSIDE_FLIGHT'], [6, 'CREATIVE_NOT_IN_CAMPAIGN'], [7, 'UNKNOWN_CAMPAIGN'], [8, 'CAMPAIGN_NOT_LAUNCHED'],
     ]);
+  });
+  it('reports a same-key row with different figures as a conflict instead of dropping it', () => {
+    const csv = [header, 'CMP-1,SCR-1,2026-11-10T10:00:00Z,3,,', 'CMP-1,SCR-1,2026-11-10T10:00:00Z,5,,', 'CMP-1,SCR-1,2026-11-10T10:00:00Z,3,,'].join('\n');
+    const result = resolveDeliveryRows('CMS_VERIFIED', parseDeliveryCsv(csv, 'CMS_VERIFIED', now).rows, new Map([['CMP-1', campaign()]]), new Map());
+    expect(result.accepted.map(r => r.line)).toEqual([2]);
+    expect(result.duplicates).toBe(1);
+    expect(result.errors).toEqual([{ line: 3, code: 'CONFLICTING_DUPLICATE' }]);
   });
   it('never merges sources: the same playout from another source has another key', () => {
     const ids = { campaignId: 'c1', screenId: 's1', creativeId: null };

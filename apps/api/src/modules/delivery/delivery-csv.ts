@@ -5,7 +5,9 @@ import { DELIVERY_CSV_COLUMNS, DELIVERY_MAX_ROWS, type DeliverySource } from '@p
 export interface ParsedDeliveryRow {
   line: number;
   campaignCode: string; screenCode: string; creativeCode: string | null;
-  playedAt: Date; count: number;
+  playedAt: Date;
+  /** Playouts; null for DECLARED_IMPRESSION (a declared impression is not a playout). */
+  count: number | null;
   /** Decimal string; only for DECLARED_IMPRESSION. */
   impressions: string | null;
   durationSeconds: string | null;
@@ -19,31 +21,35 @@ const DECIMAL = /^(?:0|[1-9]\d{0,13})(?:\.\d{1,4})?$/;
 const DURATION = /^(?:0|[1-9]\d{0,4})(?:\.\d{1,3})?$/;
 const CODE = /^[^\s,;"]{1,64}$/;
 
-/** RFC 4180 subset: comma separated, optional double quotes, "" escapes, CRLF or LF. */
-export function splitCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [], field = '', quoted = false, index = 0;
+/** RFC 4180 subset: comma separated, optional double quotes, "" escapes, CRLF or LF. Strict: text after a
+ * closing quote or a quote inside an unquoted field is malformed. Each row keeps its physical start line. */
+export function splitCsv(text: string): { line: number; cells: string[] }[] {
+  const rows: { line: number; cells: string[] }[] = [];
   const source = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+  let row: string[] = [], field = '', quoted = false, closed = false, index = 0, line = 1, rowLine = 1;
+  const endRow = () => { row.push(field); rows.push({ line: rowLine, cells: row }); row = []; field = ''; closed = false; };
   while (index < source.length) {
     const char = source[index];
     if (quoted) {
       if (char === '"') {
         if (source[index + 1] === '"') { field += '"'; index += 2; continue; }
-        quoted = false; index++; continue;
+        quoted = false; closed = true; index++; continue;
       }
+      if (char === '\n') line++;
       field += char; index++; continue;
     }
-    if (char === '"' && field === '') { quoted = true; index++; continue; }
-    if (char === ',') { row.push(field); field = ''; index++; continue; }
+    if (char === ',') { row.push(field); field = ''; closed = false; index++; continue; }
     if (char === '\r' || char === '\n') {
-      row.push(field); rows.push(row); row = []; field = '';
-      index += char === '\r' && source[index + 1] === '\n' ? 2 : 1; continue;
+      endRow();
+      index += char === '\r' && source[index + 1] === '\n' ? 2 : 1; line++; rowLine = line; continue;
     }
+    if (closed || char === '"' && field !== '') throw new Error('MALFORMED_CSV');
+    if (char === '"') { quoted = true; index++; continue; }
     field += char; index++;
   }
   if (quoted) throw new Error('UNTERMINATED_QUOTE');
-  if (field !== '' || row.length) { row.push(field); rows.push(row); }
-  return rows.filter(cells => cells.some(cell => cell.trim() !== ''));
+  if (field !== '' || row.length || closed) endRow();
+  return rows.filter(item => item.cells.some(cell => cell.trim() !== ''));
 }
 
 /**
@@ -52,23 +58,22 @@ export function splitCsv(text: string): string[][] {
  */
 export function parseDeliveryCsv(text: string, source: DeliverySource, now: Date):
   { rows: ParsedDeliveryRow[]; errors: DeliveryRowError[]; lineCount: number } {
-  let table: string[][];
+  let table: { line: number; cells: string[] }[];
   try { table = splitCsv(text); } catch { return { rows: [], errors: [{ line: 0, code: 'MALFORMED_CSV' }], lineCount: 0 }; }
   if (!table.length) return { rows: [], errors: [{ line: 0, code: 'EMPTY_FILE' }], lineCount: 0 };
   const lineCount = table.length - 1;
-  const header = table[0].map(cell => cell.trim().toLowerCase());
+  const header = table[0].cells.map(cell => cell.trim().toLowerCase());
   const errors: DeliveryRowError[] = [];
-  for (const column of header) if (!(DELIVERY_CSV_COLUMNS as readonly string[]).includes(column)) errors.push({ line: 1, code: 'UNKNOWN_COLUMN', column });
-  if (new Set(header).size !== header.length) errors.push({ line: 1, code: 'DUPLICATE_COLUMN' });
-  for (const column of ['campaign_code', 'screen_code', 'played_at']) if (!header.includes(column)) errors.push({ line: 1, code: 'MISSING_COLUMN', column });
-  if (source === 'DECLARED_IMPRESSION' && !header.includes('impressions')) errors.push({ line: 1, code: 'MISSING_COLUMN', column: 'impressions' });
+  for (const column of header) if (!(DELIVERY_CSV_COLUMNS as readonly string[]).includes(column)) errors.push({ line: table[0].line, code: 'UNKNOWN_COLUMN', column });
+  if (new Set(header).size !== header.length) errors.push({ line: table[0].line, code: 'DUPLICATE_COLUMN' });
+  for (const column of ['campaign_code', 'screen_code', 'played_at']) if (!header.includes(column)) errors.push({ line: table[0].line, code: 'MISSING_COLUMN', column });
+  if (source === 'DECLARED_IMPRESSION' && !header.includes('impressions')) errors.push({ line: table[0].line, code: 'MISSING_COLUMN', column: 'impressions' });
   if (errors.length) return { rows: [], errors, lineCount };
   if (!lineCount) return { rows: [], errors: [{ line: 0, code: 'EMPTY_FILE' }], lineCount };
   if (lineCount > DELIVERY_MAX_ROWS) return { rows: [], errors: [{ line: 0, code: 'TOO_MANY_ROWS' }], lineCount };
   const at = (cells: string[], column: string) => { const index = header.indexOf(column); return index < 0 ? '' : (cells[index] ?? '').trim(); };
   const rows: ParsedDeliveryRow[] = [];
-  table.slice(1).forEach((cells, offset) => {
-    const line = offset + 2;
+  table.slice(1).forEach(({ cells, line }) => {
     const fail = (code: string, column?: string) => { errors.push({ line, code, ...(column ? { column } : {}) }); };
     if (cells.length !== header.length) return fail('COLUMN_COUNT');
     const campaignCode = at(cells, 'campaign_code'), screenCode = at(cells, 'screen_code');
@@ -92,7 +97,7 @@ export function parseDeliveryCsv(text: string, source: DeliverySource, now: Date
     if (external && external.length > 128) fail('INVALID_VALUE', 'external_id');
     if (errors.length !== before) return;
     rows.push({ line, campaignCode, screenCode, creativeCode: creative || null, playedAt,
-      count: count ? Number(count) : 1, impressions: source === 'DECLARED_IMPRESSION' ? impressions : null,
+      count: source === 'DECLARED_IMPRESSION' ? null : count ? Number(count) : 1, impressions: source === 'DECLARED_IMPRESSION' ? impressions : null,
       durationSeconds: duration || null, externalId: external || null });
   });
   return { rows, errors, lineCount };

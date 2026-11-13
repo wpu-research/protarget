@@ -943,7 +943,8 @@ model DeliveryRecord {
   screenId        String         @db.Uuid
   creativeId      String?        @db.Uuid
   playedAt        DateTime       @db.Timestamptz
-  count           Int
+  /// Oynatma; DECLARED_IMPRESSION'da null (beyan gösterim oynatma değildir)
+  count           Int?
   impressions     Decimal?       @db.Decimal(18, 4)
   durationSeconds Decimal?       @db.Decimal(8, 3)
   externalId      String?

@@ -27,7 +27,7 @@ CREATE TABLE "delivery_records" (
     "screenId" UUID NOT NULL,
     "creativeId" UUID,
     "playedAt" TIMESTAMPTZ NOT NULL,
-    "count" INTEGER NOT NULL,
+    "count" INTEGER,
     "impressions" DECIMAL(18,4),
     "durationSeconds" DECIMAL(8,3),
     "externalId" TEXT,
@@ -65,10 +65,10 @@ ALTER TABLE "delivery_records" ADD CONSTRAINT "delivery_records_campaignId_fkey"
 ALTER TABLE "delivery_records" ADD CONSTRAINT "delivery_records_screenId_fkey" FOREIGN KEY ("screenId") REFERENCES "screens"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "delivery_records" ADD CONSTRAINT "delivery_records_creativeId_fkey" FOREIGN KEY ("creativeId") REFERENCES "creatives"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "delivery_records" ADD CONSTRAINT "delivery_records_creativeId_fkey" FOREIGN KEY ("creativeId") REFERENCES "creatives"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "delivery_records" ADD CONSTRAINT "delivery_records_voidedById_fkey" FOREIGN KEY ("voidedById") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "delivery_records" ADD CONSTRAINT "delivery_records_voidedById_fkey" FOREIGN KEY ("voidedById") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 
 -- Kural kısıtları
@@ -76,7 +76,7 @@ ALTER TABLE "delivery_import_batches"
   ADD CONSTRAINT "delivery_import_batches_counts_check" CHECK ("rowCount" >= 0 AND "acceptedCount" >= 0 AND "duplicateCount" >= 0 AND "acceptedCount" + "duplicateCount" <= "rowCount"),
   ADD CONSTRAINT "delivery_import_batches_sha_check" CHECK ("fileSha256" ~ '^[0-9a-f]{64}$');
 ALTER TABLE "delivery_records"
-  ADD CONSTRAINT "delivery_records_count_check" CHECK ("count" BETWEEN 1 AND 999999),
+  ADD CONSTRAINT "delivery_records_count_check" CHECK (("source" = 'DECLARED_IMPRESSION') = ("count" IS NULL) AND ("count" IS NULL OR "count" BETWEEN 1 AND 999999)),
   ADD CONSTRAINT "delivery_records_impressions_check" CHECK (("source" = 'DECLARED_IMPRESSION') = ("impressions" IS NOT NULL) AND ("impressions" IS NULL OR "impressions" > 0)),
   ADD CONSTRAINT "delivery_records_void_check" CHECK (("voidedAt" IS NULL) = ("voidReason" IS NULL) AND ("voidedAt" IS NULL) = ("voidedById" IS NULL));
 

@@ -789,7 +789,7 @@
   "delivery.note": "Not",
   "delivery.preview": "Önizle",
   "delivery.commit": "İçe aktar",
-  "delivery.tooLarge": "Dosya çok büyük (en fazla ~90 KB). Dosyayı bölün ya da count sütunuyla toplayın.",
+  "delivery.tooLarge": "Dosya çok büyük (en fazla 60 KB). Dosyayı bölün ya da count sütunuyla toplayın.",
   "delivery.noFile": "Önce bir dosya seçin ya da metin yapıştırın.",
   "delivery.fixLines": "Dosyada hatalı satırlar var; önizlemede listelenen satırları düzeltin.",
   "delivery.imported": "İçe aktarıldı.",
@@ -830,5 +830,6 @@
   "delivery.impressionValue": "{value} gösterim (beyan)",
   "delivery.voided": "İptal",
   "delivery.void": "İptal et",
-  "delivery.voidReason": "İptal gerekçesi (en az 3 karakter). Satır silinmez, raporlardan düşer:"
+  "delivery.voidReason": "İptal gerekçesi (en az 3 karakter). Satır silinmez, raporlardan düşer:",
+  "delivery.rowError.CONFLICTING_DUPLICATE": "Aynı oynatma farklı değerlerle daha önce geldi (sayı/süre/gösterim farklı). Ayrı satırsa external_id verin; düzeltmeyse eski satırı iptal edin."
 }
