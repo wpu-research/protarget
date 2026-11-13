@@ -6,3 +6,4 @@ export * from './foundation';
 export * from './inventory';
 export * from './campaigns';
 export * from './fleet';
+export * from './addons';

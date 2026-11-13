@@ -4,7 +4,7 @@ import { t } from '@protarget/i18n';
 import {
   BOOKING_PLAN_EDITABLE, BOOKING_STATUSES,
   type AuditRecord, type CampaignDetail, type CampaignPage, type CreativePage, type ManagedUser, type Organization, type PageResult,
-  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene,
+  type InventoryVenue, type InventoryScreen, type InventoryMultiplierHistory, type FleetScene, type AddonState, isAddonKey,
 } from '@protarget/shared';
 import { Placeholder } from '@/components/Shell';
 import { Organizations, Users, AuditTable } from '@/components/Management';
@@ -14,6 +14,7 @@ import { CampaignDetailView } from '@/components/CampaignDetail';
 import { Creatives } from '@/components/Creatives';
 import { FleetView } from '@/components/fleet/FleetView';
 import { Venues, VenueDetail, Screens, ScreenDetail, MultiplierHistory, type ScreenAd } from '@/components/Inventory';
+import { AddonList, AddonDetail } from '@/components/Addons';
 import { ADMIN_NAV, findNavLabel } from '@/lib/nav';
 import { locale, pageNumber, requireUser, serverApi } from '@/lib/server';
 /** Reads every page of a small admin list (organizations, users, venues), capped to keep rendering bounded. */
@@ -56,6 +57,16 @@ export default async function AdminPage({ params, searchParams }: {
   const search = await searchParams;
   const page = pageNumber(search.page);
   if (path === '/admin/inventory') redirect('/admin/inventory/venues');
+  if (slug[0] === 'addons') {
+    if (slug.length > 2 || (slug[1] && !isAddonKey(slug[1]))) notFound();
+    const addons = await serverApi<AddonState[]>('/addons');
+    const addon = slug[1] ? addons.find(item => item.key === slug[1]) : undefined;
+    if (slug[1] && !addon) notFound();
+    return <><p className="eyebrow">{t('addon.eyebrow', language)}</p>
+      <h1>{addon ? t(`addon.${addon.key}.name`, language) : t('nav.addons', language)}</h1>
+      <p className="page-description">{t('addon.description', language)}</p>
+      {addon ? <AddonDetail key={addon.key} addon={addon} /> : <AddonList addons={addons} />}</>;
+  }
   if (slug[0] === 'fleet') {
     if (slug.length > 1) notFound();
     const includeInactive = search.inactive === 'true';

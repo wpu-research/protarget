@@ -11,6 +11,7 @@ export const ADMIN_NAV: NavItem[] = [
   { label: 'nav.campaigns', href: '/admin/campaigns' },
   { label: 'nav.campaigns.creatives', href: '/admin/creatives' },
   { label: 'nav.reports', href: '/admin/reporting', future: true },
+  { label: 'nav.addons', href: '/admin/addons' },
 ];
 export const PORTAL_NAV: NavItem[] = [
   { label: 'nav.dashboard', href: '/portal' },
