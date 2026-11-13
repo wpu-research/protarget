@@ -18,6 +18,7 @@ export class AddonStateDto implements AddonState {
   @ApiProperty() ready: boolean;
   @ApiProperty({ type: [String] }) prerequisites: string[];
   @ApiProperty() enabled: boolean;
+  @ApiProperty() storedOn: boolean;
   @ApiProperty({ type: String, nullable: true }) updatedAt: string | null;
 }
 

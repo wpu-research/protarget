@@ -14,6 +14,7 @@ function StateBadges({ addon }: { addon: AddonState }) {
   const text = useText();
   return <p>
     <span className={`badge${addon.enabled ? ' good' : ''}`}>{text(addon.enabled ? 'addon.state.on' : 'addon.state.off')}</span>
+    <span className="visually-hidden">, </span>
     <span className={`badge${addon.kind === 'PLACEHOLDER' ? ' warn' : ''}`}>{text(`addon.kind.${addon.kind}`)}</span>
   </p>;
 }
@@ -23,19 +24,20 @@ function Toggle({ addon }: { addon: AddonState }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<MessageKey | null>(null);
-  if (!addonCanEnable(addon)) {
+  // A stale stored `true` on a module that cannot run stays clearable.
+  if (!addonCanEnable(addon) && !addon.storedOn) {
     return <p className="hint">{text(addon.kind === 'PLACEHOLDER' ? 'addon.placeholderNote' : 'addon.notReady')}</p>;
   }
   const change = async () => {
-    if (!addon.enabled && !window.confirm(text('addon.confirmEnable', { name: text(nameKey(addon)) }))) return;
+    if (!addon.enabled && !addon.storedOn && !window.confirm(text('addon.confirmEnable', { name: text(nameKey(addon)) }))) return;
     setBusy(true); setError(null);
-    try { await api(`/addons/${addon.key}`, { method: 'PATCH', body: { enabled: !addon.enabled } }); router.refresh(); }
+    try { await api(`/addons/${addon.key}`, { method: 'PATCH', body: { enabled: !(addon.enabled || addon.storedOn) } }); router.refresh(); }
     catch (e) { setError(errorKey(e)); }
     finally { setBusy(false); }
   };
   return <div>
     <button type="button" className={`button${addon.enabled ? '' : ' primary'}`} disabled={busy} onClick={change}>
-      {text(addon.enabled ? 'addon.disable' : 'addon.enable')}</button>
+      {text(addon.enabled || addon.storedOn ? 'addon.disable' : 'addon.enable')}</button>
     {error && <p className="error" role="alert">{text(error)}</p>}
   </div>;
 }

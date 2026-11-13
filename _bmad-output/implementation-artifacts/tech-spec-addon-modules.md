@@ -70,3 +70,15 @@ kitle sensörü, hava durumu/DCO, yasal e-fatura, ajans/markanın yazma yetkisi.
 Her story: build, typecheck, lint, unit test (Node 24). Docker/Postgres erişimi yoksa
 integration/E2E "çalıştırılamadı" olarak raporlanır. Push, `main`'e merge ve Railway
 yayını yalnız kullanıcının açık onayıyla.
+
+## Code Review Findings — Tur 1 (13 Kasım 2026, story addon-foundation) → Düzeltildi
+
+0 high, 0 medium, 3 low (inceleme: ayrı alt ajan, salt okunur).
+1. low — `addons.service.ts setEnabled`: aynı değerle PATCH `updatedAt`'i ve audit'i boşuna yazıyordu → değişiklik yoksa yazmadan döner.
+2. low — `Addons.tsx Toggle`: yer tutucu/hazır olmayan modülde eski `true` satırı temizlenemiyordu → `storedOn` alanı; saklı `true` varsa "Pasife al" görünür, kapatma her zaman serbest.
+3. low — `Addons.tsx StateBadges`: ekran okuyucuda iki rozet bitişik okunuyordu → görünmez ayırıcı.
+
+## Code Review Findings — Tur 2 (13 Kasım 2026, story addon-foundation) → ✅ Onaylandı
+
+Düzeltme diff'i yeniden incelendi (ana oturum): 0 patch, 0 intent_gap. Build, typecheck, lint, 147 unit test geçti.
+`main`'e merge kullanıcı onayı bekliyor (görev kuralı: merge/push/yayın yalnız açık onayla).

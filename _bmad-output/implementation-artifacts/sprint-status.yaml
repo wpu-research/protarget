@@ -5,5 +5,5 @@ development_status:
   campaign-booking: done
   fleet-3d: review
   # Admin 3D fleet tab; local only, not deployed. Real AIS feed is a later story.
-  addon-foundation: review
+  addon-foundation: done
   # Add-on flags + passive placeholders (Broadsign gap list); all modules off by default.

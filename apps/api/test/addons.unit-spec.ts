@@ -17,6 +17,7 @@ describe('Add-on modules', () => {
     const states = presentAddons(placeholders.map(m => row(addonSettingKey(m.key), true)));
     expect(states.filter(s => s.kind === 'PLACEHOLDER').every(s => !s.enabled)).toBe(true);
     expect(placeholders.some(addonCanEnable)).toBe(false);
+    expect(states.filter(s => s.kind === 'PLACEHOLDER').every(s => s.storedOn)).toBe(true);
   });
   it('treats only a JSON true as enabled and reports when the flag last changed', () => {
     const ready = ADDON_MODULES.map(m => m.key === 'capacity' || m.key === 'sales' ? { ...m, ready: true } : m);

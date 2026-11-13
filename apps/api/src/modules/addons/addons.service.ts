@@ -17,7 +17,8 @@ export function presentAddons(rows: SettingRow[], definitions: readonly AddonDef
   const byKey = new Map(rows.map(row => [row.key, row]));
   return definitions.map(definition => {
     const row = byKey.get(addonSettingKey(definition.key));
-    return { ...definition, enabled: addonCanEnable(definition) && row?.value === true,
+    const storedOn = row?.value === true;
+    return { ...definition, enabled: addonCanEnable(definition) && storedOn, storedOn,
       updatedAt: row ? row.updatedAt.toISOString() : null };
   });
 }
@@ -45,6 +46,8 @@ export class AddonsService {
         throw new ApiError(409, 'ADDON_NOT_AVAILABLE', 'This add-on module cannot be enabled in this version', { addon: key });
       }
       const before = presentAddons(await this.rows(tx)).find(item => item.key === key)!;
+      // No-op: keep "last changed" truthful and the audit log free of before == after rows.
+      if (before.storedOn === enabled && before.enabled === enabled) return before;
       const settingKey = addonSettingKey(key);
       await tx.setting.upsert({ where: { key: settingKey }, create: { key: settingKey, value: enabled },
         update: { value: enabled } });

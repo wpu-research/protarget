@@ -43,6 +43,8 @@ export const addonCanEnable = (definition: AddonDefinition) => definition.kind =
 
 export interface AddonState extends AddonDefinition {
   enabled: boolean;
+  /** Ayarda JSON `true` saklı mı? Hazır olmayan/yer tutucu modülde eski satırı temizlemek için. */
+  storedOn: boolean;
   /** Bayrağın son değiştiği an; hiç değişmediyse null. */
   updatedAt: string | null;
 }
